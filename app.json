@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "CDPI Wallet",
+    "slug": "cdpi-wallet",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "cdpiwallet",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FFFFFF"
+    },
+    "android": {
+      "package": "org.cdpi.wallet",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "openid-credential-offer"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "openid4vp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "org.cdpi.wallet",
+      "supportsTablet": false
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite acceder a la cámara para escanear códigos QR."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permite usar Face ID para proteger tu billetera."
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}

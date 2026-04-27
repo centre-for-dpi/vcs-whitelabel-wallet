@@ -1,0 +1,44 @@
+{
+  "name": "cdpi-wallet",
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:production": "eas build --platform android --profile production",
+    "build:ios:production": "eas build --platform ios --profile production"
+  },
+  "dependencies": {
+    "@credo-ts/askar": "0.6.3",
+    "@credo-ts/core": "0.6.3",
+    "@credo-ts/openid4vc": "0.6.3",
+    "@credo-ts/react-native": "0.6.3",
+    "@openwallet-foundation/askar-react-native": "0.6.0",
+    "@openwallet-foundation/askar-shared": "0.6.0",
+    "expo": "~54.0.31",
+    "expo-camera": "~17.0.10",
+    "expo-dev-client": "~6.0.20",
+    "expo-local-authentication": "~17.0.8",
+    "expo-secure-store": "~15.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-fs": "2.20.0",
+    "react-native-get-random-values": "~1.11.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "@credo-ts/core": "0.6.3",
+    "@credo-ts/askar": "0.6.3",
+    "@credo-ts/openid4vc": "0.6.3",
+    "@credo-ts/react-native": "0.6.3",
+    "@openwallet-foundation/askar-shared": "0.6.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  }
+}
