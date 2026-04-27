@@ -1,0 +1,29 @@
+version: '3.8'
+
+# CREDEBL DIDComm Mediator
+# Run this alongside the CREDEBL stack (or as a standalone service).
+#
+# Start:  docker compose up -d
+# Stop:   docker compose down
+#
+# After starting, set mediatorUrl in branding.config.ts to:
+#   ws://YOUR_VPS_IP:3010/ws
+
+services:
+  mediator:
+    image: ghcr.io/openwallet-foundation/credo-ts-mediator:latest
+    container_name: cdpi-mediator
+    restart: unless-stopped
+    ports:
+      - "3010:3010"
+    environment:
+      - AGENT_ENDPOINT=http://${VPS_IP:-localhost}:3010
+      - AGENT_PUBLIC_DID_SEED=${MEDIATOR_SEED:-cdpi-mediator-seed-change-me-00001}
+      - WALLET_KEY=${MEDIATOR_WALLET_KEY:-cdpi-mediator-wallet-key-change-me}
+      - WALLET_NAME=cdpi-mediator
+      - PORT=3010
+    volumes:
+      - mediator_wallet:/home/node/.indy_client
+
+volumes:
+  mediator_wallet:

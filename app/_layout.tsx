@@ -1,0 +1,27 @@
+import 'react-native-get-random-values';
+import React from 'react';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { AgentProvider } from '../src/agent/context';
+
+export default function RootLayout() {
+  return (
+    <AgentProvider>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="unlock" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="receive"
+          options={{ presentation: 'modal', headerShown: true, title: 'Recibir credencial' }}
+        />
+        <Stack.Screen
+          name="present"
+          options={{ presentation: 'modal', headerShown: true, title: 'Presentar credencial' }}
+        />
+      </Stack>
+    </AgentProvider>
+  );
+}

@@ -61,7 +61,8 @@
           "faceIDPermission": "Permite usar Face ID para proteger tu billetera."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-router"
     ]
   }
 }
