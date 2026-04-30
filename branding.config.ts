@@ -10,23 +10,23 @@
  */
 
 export const branding = {
-  appName: 'CDPI Wallet',
-  primaryColor: '#1A56DB',
+  appName: 'CDPI Bootcamp Wallet',
+  primaryColor: '#db1a3d',
   secondaryColor: '#E8F0FE',
   backgroundColor: '#F9FAFB',
   textColor: '#111827',
 
   // Mediator URL for DIDComm connectivity (CREDEBL)
   // Change VPS_IP to your server's public IP address
-  mediatorUrl: 'ws://VPS_IP:3010/ws',
+  mediatorUrl: 'ws://crebebl.bootcamp.cdpi.dev/mediator/ws',
 
   // Issuers shown in the "Get a credential" screen
   issuers: [
     {
       id: 'employment',
-      label: 'Ministerio del Trabajo',
-      url: 'http://VPS_IP:8091',
-      dpg: 'inji' as const,
+      label: 'Issuer of Employment Credential',
+      url: 'https://credebl.bootcamp.cdpi.dev',
+      dpg: 'credebl' as const,
     },
   ],
 } as const;

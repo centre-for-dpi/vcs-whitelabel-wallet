@@ -8,7 +8,8 @@
     "ios": "expo run:ios",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:android:production": "eas build --platform android --profile production",
-    "build:ios:production": "eas build --platform ios --profile production"
+    "build:ios:production": "eas build --platform ios --profile production",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@credo-ts/askar": "0.6.3",
@@ -20,20 +21,25 @@
     "expo": "~54.0.31",
     "expo-camera": "~17.0.10",
     "expo-crypto": "~15.0.8",
-    "expo-dev-client": "~6.0.20",
+    "expo-dev-client": "~6.0.21",
+    "expo-linking": "~8.0.12",
     "expo-local-authentication": "~17.0.8",
     "expo-router": "~6.0.23",
     "expo-secure-store": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-fs": "2.20.0",
     "react-native-get-random-values": "~1.11.0",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0"
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~19.1.0",
+    "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   },
   "overrides": {

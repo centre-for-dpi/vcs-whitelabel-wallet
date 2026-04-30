@@ -21,7 +21,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="credentials"
         options={{
-          title: 'Credenciales',
+          title: '',
           tabBarLabel: 'Credenciales',
           tabBarIcon: ({ focused }) => <Icon label="🪪" focused={focused} />,
           headerTitle: branding.appName,
@@ -44,5 +44,6 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    
   );
 }

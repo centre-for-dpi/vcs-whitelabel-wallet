@@ -1,76 +1,58 @@
 import {
   Agent,
-  AutoAcceptCredential,
-  ConnectionsModule,
   ConsoleLogger,
-  CredentialsModule,
   DidsModule,
   InitConfig,
-  JsonLdCredentialFormatService,
   KeyDidRegistrar,
   KeyDidResolver,
   LogLevel,
-  MediationRecipientModule,
-  V2CredentialProtocol,
+  SdJwtVcModule,
   W3cCredentialsModule,
   WebDidResolver,
 } from '@credo-ts/core';
-import {
-  HttpOutboundTransport,
-  WsOutboundTransport,
-  agentDependencies,
-} from '@credo-ts/react-native';
+import { agentDependencies } from '@credo-ts/react-native';
 import { AskarModule } from '@credo-ts/askar';
-import { OpenId4VcHolderModule } from '@credo-ts/openid4vc';
-import { ariesAskar } from '@openwallet-foundation/askar-react-native';
+import { OpenId4VcModule } from '@credo-ts/openid4vc';
+import { askar } from '@openwallet-foundation/askar-react-native';
 
 export type WalletAgent = Agent;
 
 export const setupAgent = async (walletKey: string): Promise<WalletAgent> => {
   const config: InitConfig = {
-    label: 'cdpi-wallet',
-    walletConfig: {
-      id: 'cdpi-wallet-v1',
-      key: walletKey,
-    },
     logger: new ConsoleLogger(LogLevel.warn),
   };
 
   const agent = new Agent({
     config,
     modules: {
-      // Storage — required
-      askar: new AskarModule({ ariesAskar }),
-
-      // OID4VCI + OID4VP (INJI, walt.id, CREDEBL future)
-      openId4VcHolder: new OpenId4VcHolderModule(),
-
-      // DID management
+      askar: new AskarModule({
+        askar,
+        store: {
+          id: 'cdpi-wallet-v1',
+          key: walletKey,
+        },
+      }),
+      openid4vc: new OpenId4VcModule({}),
+      sdJwtVc: new SdJwtVcModule({
+        customTypeMetadataResolver: async (_vct, _integrity, { defaultResolver }) => {
+          try {
+            const doc = await defaultResolver({ throwErrorOnFetchError: false, throwErrorOnUnsupportedVctValue: false });
+            // If the document is missing or lacks a valid `vct` string, skip validation by returning undefined
+            if (!doc || typeof doc.vct !== 'string') return undefined;
+            return doc;
+          } catch {
+            return undefined;
+          }
+        },
+      }),
       dids: new DidsModule({
         registrars: [new KeyDidRegistrar()],
         resolvers: [new KeyDidResolver(), new WebDidResolver()],
       }),
-
-      // W3C VC storage and validation
       w3cCredentials: new W3cCredentialsModule(),
-
-      // DIDComm — for CREDEBL compatibility today
-      connections: new ConnectionsModule({ autoAcceptConnections: true }),
-      credentials: new CredentialsModule({
-        autoAcceptCredentials: AutoAcceptCredential.ContentApproved,
-        credentialProtocols: [
-          new V2CredentialProtocol({
-            credentialFormats: [new JsonLdCredentialFormatService()],
-          }),
-        ],
-      }),
-      mediationRecipient: new MediationRecipientModule(),
     },
     dependencies: agentDependencies,
   });
-
-  agent.registerOutboundTransport(new HttpOutboundTransport());
-  agent.registerOutboundTransport(new WsOutboundTransport());
 
   await agent.initialize();
   return agent;

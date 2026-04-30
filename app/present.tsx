@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
 
-type Step = 'resolving' | 'confirm' | 'presenting' | 'done' | 'error';
+type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
 
 type RequestInfo = {
   verifier: string;
@@ -29,43 +30,33 @@ export default function Present() {
   const [step, setStep] = useState<Step>('resolving');
   const [requestInfo, setRequestInfo] = useState<RequestInfo | null>(null);
   const [resolvedRequest, setResolvedRequest] = useState<unknown>(null);
+  const [compactSdJwt, setCompactSdJwt] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    if (!url || agentState.status !== 'ready') {
-      // Launched from credential detail (manual present) — skip resolution
-      if (id && agentState.status === 'ready') {
-        setStep('confirm');
-        setRequestInfo({ verifier: 'Presentación manual', purpose: 'A demanda', requestedTypes: [] });
-      }
-      return;
+    if (agentState.status !== 'ready') return;
+    if (url) {
+      resolveOID4VP();
+    } else if (id) {
+      loadCredentialQr();
     }
-    resolveRequest();
-  }, [url, agentState.status]);
+  }, [url, id, agentState.status]);
 
-  const resolveRequest = async () => {
+  const resolveOID4VP = async () => {
     if (agentState.status !== 'ready' || !url) return;
     const { agent } = agentState;
     try {
-      const resolved = await agent.modules.openId4VcHolder.resolveSiopAuthorizationRequest(url);
+      const resolved = await agent.modules.openid4vc.holder.resolveOpenId4VpAuthorizationRequest(url);
       setResolvedRequest(resolved);
 
-      const req = resolved as Record<string, unknown>;
-      const authReq = req.authorizationRequest as Record<string, unknown> | undefined;
+      const r = resolved as Record<string, unknown>;
+      const verifierInfo = r.verifier as Record<string, string> | undefined;
+      const verifier = verifierInfo?.effectiveClientId ?? 'Verificador';
 
-      const verifier =
-        (authReq?.client_id as string) ??
-        (authReq?.client_metadata as Record<string, string> | undefined)?.client_name ??
-        'Verificador';
-
-      const purpose = (authReq?.claims as Record<string, unknown> | undefined)
-        ? 'Verificación de identidad'
-        : 'Presentación de credencial';
-
-      const presentationDef = req.presentationExchange as Record<string, unknown> | undefined;
-      const inputDescriptors =
-        (presentationDef?.presentationDefinition as Record<string, unknown> | undefined)
-          ?.input_descriptors as Array<Record<string, string>> | undefined;
+      const pex = r.presentationExchange as Record<string, unknown> | undefined;
+      const definition = pex?.definition as Record<string, unknown> | undefined;
+      const purpose = (definition?.purpose as string | undefined) ?? 'Verificación de credencial';
+      const inputDescriptors = definition?.input_descriptors as Array<Record<string, string>> | undefined;
       const requestedTypes = inputDescriptors?.map((d) => d.name ?? d.id ?? 'Credencial') ?? [];
 
       setRequestInfo({ verifier, purpose, requestedTypes });
@@ -76,23 +67,58 @@ export default function Present() {
     }
   };
 
+  const loadCredentialQr = async () => {
+    if (agentState.status !== 'ready' || !id) return;
+    const { agent } = agentState;
+    try {
+      if (format === 'sdjwt') {
+        const record = await agent.sdJwtVc.getById(id);
+        setCompactSdJwt(record.firstCredential.compact);
+      }
+      setStep('qr');
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : 'Error al cargar la credencial.');
+      setStep('error');
+    }
+  };
+
   const handlePresent = async () => {
-    if (agentState.status !== 'ready') return;
+    if (agentState.status !== 'ready' || !resolvedRequest) return;
     const { agent } = agentState;
     setStep('presenting');
-
     try {
-      if (resolvedRequest) {
-        // OID4VP flow — auto-select matching credentials
-        const resolved = resolvedRequest as Record<string, unknown>;
-        await agent.modules.openId4VcHolder.acceptSiopAuthorizationRequest({
-          authorizationRequest: resolved.authorizationRequest,
-          presentationExchangeResponseOpts: resolved.presentationExchange
-            ? { credentials: [] } // Credo auto-selects matching credentials
-            : undefined,
-        });
+      const resolved = resolvedRequest as Record<string, unknown>;
+
+      // Auto-select credentials for Presentation Exchange (PEX)
+      let pexCredentials = undefined;
+      const pex = resolved.presentationExchange as Record<string, unknown> | undefined;
+      if (pex?.credentialsForRequest) {
+        pexCredentials = agent.modules.openid4vc.holder.selectCredentialsForPresentationExchangeRequest(
+          pex.credentialsForRequest as Parameters<
+            typeof agent.modules.openid4vc.holder.selectCredentialsForPresentationExchangeRequest
+          >[0]
+        );
       }
-      // If launched from detail (no resolvedRequest), just mark done as demo
+
+      // Auto-select credentials for DCQL
+      let dcqlCredentials = undefined;
+      const dcql = resolved.dcql as Record<string, unknown> | undefined;
+      if (dcql?.queryResult) {
+        dcqlCredentials = agent.modules.openid4vc.holder.selectCredentialsForDcqlRequest(
+          dcql.queryResult as Parameters<
+            typeof agent.modules.openid4vc.holder.selectCredentialsForDcqlRequest
+          >[0]
+        );
+      }
+
+      await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
+        authorizationRequestPayload: resolved.authorizationRequestPayload as Parameters<
+          typeof agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest
+        >[0]['authorizationRequestPayload'],
+        ...(pexCredentials ? { presentationExchange: { credentials: pexCredentials } } : {}),
+        ...(dcqlCredentials ? { dcql: { credentials: dcqlCredentials } } : {}),
+      });
+
       setStep('done');
     } catch (e: unknown) {
       setErrorMsg(e instanceof Error ? e.message : 'Error al presentar la credencial.');
@@ -104,12 +130,12 @@ export default function Present() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      scrollEnabled={false}
+      scrollEnabled={step === 'qr'}
     >
       {step === 'resolving' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={branding.primaryColor} />
-          <Text style={styles.statusText}>Leyendo solicitud de verificación...</Text>
+          <Text style={styles.statusText}>Leyendo solicitud...</Text>
         </View>
       )}
 
@@ -134,7 +160,7 @@ export default function Present() {
 
           <View style={styles.notice}>
             <Text style={styles.noticeText}>
-              Solo se compartirán los atributos seleccionados en el detalle de la credencial.
+              Se seleccionarán automáticamente las credenciales que satisfagan la solicitud.
             </Text>
           </View>
 
@@ -150,10 +176,55 @@ export default function Present() {
         </>
       )}
 
+      {step === 'qr' && (
+        <View style={styles.qrContainer}>
+          <Text style={styles.qrTitle}>Presentación presencial</Text>
+          <Text style={styles.qrSubtitle}>
+            Muestra este QR al verificador para que escanee tu credencial directamente.
+          </Text>
+
+          {compactSdJwt ? (
+            <View style={styles.qrBox}>
+              <QRCode
+                value={compactSdJwt}
+                size={260}
+                color="#111827"
+                backgroundColor="#fff"
+              />
+            </View>
+          ) : (
+            <View style={[styles.qrBox, styles.qrBoxEmpty]}>
+              <Text style={styles.qrBoxEmptyText}>
+                Este tipo de credencial no admite presentación QR directa.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.btn, { backgroundColor: branding.primaryColor }]}
+            onPress={() => {
+              router.back();
+              router.replace({ pathname: '/(tabs)/scan', params: { context: 'present' } });
+            }}
+          >
+            <Text style={styles.btnText}>Escanear QR del verificador</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
+            <Text style={styles.cancelText}>Volver</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {step === 'presenting' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={branding.primaryColor} />
-          <Text style={styles.statusText}>Presentando credencial...</Text>
+          <Text style={styles.statusText}>Enviando presentación al verificador...</Text>
         </View>
       )}
 
@@ -162,7 +233,7 @@ export default function Present() {
           <Text style={styles.doneIcon}>✅</Text>
           <Text style={styles.doneTitle}>¡Presentación exitosa!</Text>
           <Text style={styles.doneBody}>
-            Tu credencial fue verificada correctamente.
+            El verificador recibió y validó tu credencial.
           </Text>
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
@@ -205,7 +276,7 @@ const styles = StyleSheet.create({
   credName: { fontSize: 15, color: '#111827' },
   notice: { backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 20 },
   noticeText: { fontSize: 13, color: '#92400E', lineHeight: 18 },
-  btn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  btn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12, width: '100%' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancelBtn: { height: 44, justifyContent: 'center', alignItems: 'center' },
   cancelText: { color: '#6B7280', fontSize: 15 },
@@ -213,4 +284,23 @@ const styles = StyleSheet.create({
   doneTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 8 },
   doneBody: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
   errorBody: { fontSize: 14, color: '#DC2626', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  qrContainer: { flex: 1, alignItems: 'center', paddingTop: 8 },
+  qrTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 8, textAlign: 'center' },
+  qrSubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 28 },
+  qrBox: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  qrBoxEmpty: { width: 300, height: 160, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
+  qrBoxEmptyText: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
+  divider: { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  dividerText: { marginHorizontal: 12, fontSize: 13, color: '#9CA3AF' },
 });

@@ -12,33 +12,49 @@ export type CredentialEntry = {
 };
 
 export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
-  const payload = record.compactSdJwtVc
-    ? decodeSdJwtPayload(record.compactSdJwtVc)
-    : {};
+  const sdJwtVc = record.firstCredential;
+  const payload = sdJwtVc.payload as Record<string, unknown>;
+  // prettyClaims includes all selectively-disclosed attributes with values applied
+  const prettyClaims = sdJwtVc.prettyClaims as Record<string, unknown>;
 
-  const claims = (payload as Record<string, unknown>) ?? {};
-  const vct = (claims.vct as string) ?? 'Credential';
-  const issuer =
-    typeof claims.iss === 'string' ? claims.iss : 'Unknown issuer';
+  const vct = (payload.vct as string) ?? 'Credential';
+  const rawIssuer = typeof payload.iss === 'string' ? payload.iss : '';
   const issuanceDate =
-    typeof claims.iat === 'number'
-      ? new Date(claims.iat * 1000).toISOString()
+    typeof payload.iat === 'number'
+      ? new Date(payload.iat * 1000).toISOString()
       : new Date().toISOString();
 
-  // Fields that can be selectively disclosed (exclude reserved JWT claims)
-  const reserved = new Set(['iss', 'iat', 'exp', 'nbf', 'sub', 'jti', 'vct', 'cnf', '_sd', '_sd_alg']);
-  const selectiveFields = Object.keys(claims).filter((k) => !reserved.has(k));
+  // Prefer display names stored as tags at receive time
+  const tags = record.getTags() as Record<string, unknown>;
+  const issuer =
+    typeof tags.issuerName === 'string' ? tags.issuerName : formatIssuerUrl(rawIssuer);
+  const type =
+    typeof tags.credentialName === 'string' ? tags.credentialName : vct.split('/').pop() ?? vct;
+
+  const reserved = new Set(['iss', 'iat', 'exp', 'nbf', 'sub', 'jti', 'vct', 'cnf', '_sd', '_sd_alg', 'status']);
+  const selectiveFields = Object.keys(prettyClaims).filter((k) => !reserved.has(k));
 
   return {
     id: record.id,
     format: 'sdjwt',
-    type: vct.split('/').pop() ?? vct,
+    type,
     issuer,
     issuanceDate,
-    claims,
+    claims: prettyClaims,
     selectiveFields,
     rawRecord: record,
   };
+};
+
+const formatIssuerUrl = (url: string): string => {
+  if (!url) return 'Unknown issuer';
+  try {
+    const u = new URL(url);
+    const segment = u.pathname.split('/').filter(Boolean).pop() ?? u.hostname;
+    return segment.split(/[-_]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  } catch {
+    return url;
+  }
 };
 
 export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
@@ -65,6 +81,9 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
     : vc.credentialSubject;
   const claims: Record<string, unknown> = { ...subject };
 
+  const W3C_RESERVED = new Set(['id', 'type']);
+  const selectiveFields = Object.keys(claims).filter((k) => !W3C_RESERVED.has(k));
+
   return {
     id: record.id,
     format: 'w3c',
@@ -72,22 +91,11 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
     issuer,
     issuanceDate,
     claims,
-    selectiveFields: [],
+    selectiveFields,
     rawRecord: record,
   };
 };
 
-const decodeSdJwtPayload = (compact: string): Record<string, unknown> => {
-  try {
-    const parts = compact.split('~')[0].split('.');
-    if (parts.length < 2) return {};
-    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), '='));
-    return JSON.parse(json);
-  } catch {
-    return {};
-  }
-};
 
 export const formatClaimKey = (key: string): string =>
   key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

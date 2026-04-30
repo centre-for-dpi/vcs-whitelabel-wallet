@@ -48,7 +48,7 @@ export default function Onboarding() {
       <View style={styles.container}>
         <View style={styles.logoBox}>
           <Text style={[styles.logoText, { color: branding.primaryColor }]}>
-            {branding.appName.charAt(0)}
+            🪪
           </Text>
         </View>
         <Text style={styles.title}>{branding.appName}</Text>

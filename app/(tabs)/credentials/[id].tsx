@@ -89,33 +89,31 @@ export default function CredentialDetail() {
       {/* Claims */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Atributos</Text>
-        {Object.entries(entry.claims)
-          .filter(([key]) => !['_sd', '_sd_alg', 'cnf'].includes(key))
-          .map(([key, value]) => {
-            const isSelective = entry.selectiveFields.includes(key);
-            return (
-              <View key={key} style={styles.claim}>
-                <View style={styles.claimLeft}>
-                  <Text style={styles.claimKey}>{formatClaimKey(key)}</Text>
-                  <Text style={styles.claimValue}>{formatClaimValue(value)}</Text>
-                </View>
-                {isSelective && (
-                  <View style={styles.claimRight}>
-                    <Text style={styles.disclosureLabel}>
-                      {disclosed[key] ? 'Revelar' : 'Ocultar'}
-                    </Text>
-                    <Switch
-                      value={disclosed[key] ?? true}
-                      onValueChange={(v) =>
-                        setDisclosed((prev) => ({ ...prev, [key]: v }))
-                      }
-                      trackColor={{ true: branding.primaryColor, false: '#D1D5DB' }}
-                    />
-                  </View>
-                )}
+        {entry.selectiveFields.map((key) => {
+          const value = entry.claims[key];
+          return (
+            <View key={key} style={styles.claim}>
+              <View style={styles.claimLeft}>
+                <Text style={styles.claimKey}>{formatClaimKey(key)}</Text>
+                <Text style={styles.claimValue}>{formatClaimValue(value)}</Text>
               </View>
-            );
-          })}
+              {entry.format === 'sdjwt' && (
+                <View style={styles.claimRight}>
+                  <Text style={styles.disclosureLabel}>
+                    {disclosed[key] ? 'Revelar' : 'Ocultar'}
+                  </Text>
+                  <Switch
+                    value={disclosed[key] ?? true}
+                    onValueChange={(v) =>
+                      setDisclosed((prev) => ({ ...prev, [key]: v }))
+                    }
+                    trackColor={{ true: branding.primaryColor, false: '#D1D5DB' }}
+                  />
+                </View>
+              )}
+            </View>
+          );
+        })}
       </View>
 
       {/* Present */}

@@ -1,0 +1,992 @@
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/CMakeLists.txt b/node_modules/@openwallet-foundation/askar-react-native/android/CMakeLists.txt
+index 69b681a..b16f53a 100644
+--- a/node_modules/@openwallet-foundation/askar-react-native/android/CMakeLists.txt
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/CMakeLists.txt
+@@ -57,4 +57,5 @@ target_link_libraries(
+   ${ASKAR_LIB}
+   ReactAndroid::jsi
+   fbjni::fbjni
++  c++_shared
+ )
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/.transforms/861e1a955f4c5417295931fb0b0f0999/results.bin b/node_modules/@openwallet-foundation/askar-react-native/android/build/.transforms/861e1a955f4c5417295931fb0b0f0999/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/.transforms/861e1a955f4c5417295931fb0b0f0999/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/.transforms/861e1a955f4c5417295931fb0b0f0999/transformed/classes/classes_dex/classes.dex b/node_modules/@openwallet-foundation/askar-react-native/android/build/.transforms/861e1a955f4c5417295931fb0b0f0999/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..aa6b248
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/.transforms/861e1a955f4c5417295931fb0b0f0999/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/generated/source/buildConfig/debug/foundation/openwallet/askar/BuildConfig.java b/node_modules/@openwallet-foundation/askar-react-native/android/build/generated/source/buildConfig/debug/foundation/openwallet/askar/BuildConfig.java
+new file mode 100644
+index 0000000..6ce6b5d
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/generated/source/buildConfig/debug/foundation/openwallet/askar/BuildConfig.java
+@@ -0,0 +1,10 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package foundation.openwallet.askar;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = Boolean.parseBoolean("true");
++  public static final String LIBRARY_PACKAGE_NAME = "foundation.openwallet.askar";
++  public static final String BUILD_TYPE = "debug";
++}
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..6bcdc84
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="foundation.openwallet.askar" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..ce026b7
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "foundation.openwallet.askar",
++  "variantName": "debug",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..1211b1e
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=1
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar
+new file mode 100644
+index 0000000..480d5eb
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..c0485b6
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_command_askarreactnative.bat b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_command_askarreactnative.bat
+new file mode 100644
+index 0000000..71bc343
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_command_askarreactnative.bat
+@@ -0,0 +1,5 @@
++@echo off
++"C:\\Program Files (x86)\\Android\\android-sdk\\cmake\\3.22.1\\bin\\ninja.exe" ^
++  -C ^
++  "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\arm64-v8a" ^
++  askarreactnative
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_model.json b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_model.json
+new file mode 100644
+index 0000000..5e871b8
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_model.json
+@@ -0,0 +1,217 @@
++{
++  "info": {
++    "name": "arm64-v8a",
++    "bitness": 64,
++    "isDefault": true,
++    "isDeprecated": false,
++    "architecture": "arm64",
++    "triple": "aarch64-linux-android",
++    "llvmTriple": "aarch64-none-linux-android"
++  },
++  "cxxBuildFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\arm64-v8a",
++  "soFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx\\Debug\\3r5f592x\\obj\\arm64-v8a",
++  "soRepublishFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cmake\\debug\\obj\\arm64-v8a",
++  "abiPlatformVersion": 24,
++  "cmake": {
++    "effectiveConfiguration": {
++      "inheritEnvironments": [],
++      "variables": []
++    }
++  },
++  "variant": {
++    "buildSystemArgumentList": [
++      "-DANDROID_STL\u003dc++_shared",
++      "-DREACT_NATIVE_VERSION\u003d81",
++      "-DNODE_MODULES_DIR\u003dC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules",
++      "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES\u003dON"
++    ],
++    "cFlagsList": [],
++    "cppFlagsList": [
++      "-fexceptions",
++      "-frtti",
++      "-std\u003dc++1y",
++      "-DONANDROID"
++    ],
++    "variantName": "debug",
++    "isDebuggableEnabled": true,
++    "validAbiList": [
++      "armeabi-v7a",
++      "arm64-v8a",
++      "x86",
++      "x86_64"
++    ],
++    "buildTargetSet": [],
++    "implicitBuildTargetSet": [],
++    "cmakeSettingsConfiguration": "android-gradle-plugin-predetermined-name",
++    "module": {
++      "cxxFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx",
++      "intermediatesBaseFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates",
++      "intermediatesFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx",
++      "gradleModulePathName": ":openwallet-foundation_askar-react-native",
++      "moduleRootFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android",
++      "moduleBuildFile": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build.gradle",
++      "makeFile": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\CMakeLists.txt",
++      "buildSystem": "CMAKE",
++      "ndkFolder": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006",
++      "ndkFolderBeforeSymLinking": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006",
++      "ndkVersion": "27.1.12297006",
++      "ndkSupportedAbiList": [
++        "armeabi-v7a",
++        "arm64-v8a",
++        "riscv64",
++        "x86",
++        "x86_64"
++      ],
++      "ndkDefaultAbiList": [
++        "armeabi-v7a",
++        "arm64-v8a",
++        "x86",
++        "x86_64"
++      ],
++      "ndkDefaultStl": "LIBCXX_STATIC",
++      "ndkMetaPlatforms": {
++        "min": 21,
++        "max": 35,
++        "aliases": {
++          "20": 19,
++          "25": 24,
++          "J": 16,
++          "J-MR1": 17,
++          "J-MR2": 18,
++          "K": 19,
++          "L": 21,
++          "L-MR1": 22,
++          "M": 23,
++          "N": 24,
++          "N-MR1": 24,
++          "O": 26,
++          "O-MR1": 27,
++          "P": 28,
++          "Q": 29,
++          "R": 30,
++          "S": 31,
++          "Sv2": 32,
++          "Tiramisu": 33,
++          "UpsideDownCake": 34,
++          "VanillaIceCream": 35
++        }
++      },
++      "ndkMetaAbiList": [
++        {
++          "name": "armeabi-v7a",
++          "bitness": 32,
++          "isDefault": true,
++          "isDeprecated": false,
++          "architecture": "arm",
++          "triple": "arm-linux-androideabi",
++          "llvmTriple": "armv7-none-linux-androideabi"
++        },
++        {
++          "name": "arm64-v8a",
++          "bitness": 64,
++          "isDefault": true,
++          "isDeprecated": false,
++          "architecture": "arm64",
++          "triple": "aarch64-linux-android",
++          "llvmTriple": "aarch64-none-linux-android"
++        },
++        {
++          "name": "riscv64",
++          "bitness": 64,
++          "isDefault": false,
++          "isDeprecated": false,
++          "architecture": "riscv64",
++          "triple": "riscv64-linux-android",
++          "llvmTriple": "riscv64-none-linux-android"
++        },
++        {
++          "name": "x86",
++          "bitness": 32,
++          "isDefault": true,
++          "isDeprecated": false,
++          "architecture": "x86",
++          "triple": "i686-linux-android",
++          "llvmTriple": "i686-none-linux-android"
++        },
++        {
++          "name": "x86_64",
++          "bitness": 64,
++          "isDefault": true,
++          "isDeprecated": false,
++          "architecture": "x86_64",
++          "triple": "x86_64-linux-android",
++          "llvmTriple": "x86_64-none-linux-android"
++        }
++      ],
++      "cmakeToolchainFile": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\build\\cmake\\android.toolchain.cmake",
++      "cmake": {
++        "cmakeExe": "C:\\Program Files (x86)\\Android\\android-sdk\\cmake\\3.22.1\\bin\\cmake.exe"
++      },
++      "stlSharedObjectMap": {
++        "LIBCXX_SHARED": {
++          "armeabi-v7a": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\arm-linux-androideabi\\libc++_shared.so",
++          "arm64-v8a": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\aarch64-linux-android\\libc++_shared.so",
++          "riscv64": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\riscv64-linux-android\\libc++_shared.so",
++          "x86": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\i686-linux-android\\libc++_shared.so",
++          "x86_64": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\x86_64-linux-android\\libc++_shared.so"
++        },
++        "LIBCXX_STATIC": {},
++        "NONE": {},
++        "SYSTEM": {}
++      },
++      "project": {
++        "rootBuildGradleFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\android",
++        "sdkFolder": "C:\\Program Files (x86)\\Android\\android-sdk",
++        "isBuildOnlyTargetAbiEnabled": true,
++        "isCmakeBuildCohabitationEnabled": false,
++        "isPrefabEnabled": true
++      },
++      "outputOptions": [],
++      "ninjaExe": "C:\\Program Files (x86)\\Android\\android-sdk\\cmake\\3.22.1\\bin\\ninja.exe",
++      "hasBuildTimeInformation": true
++    },
++    "prefabClassPaths": [
++      "C:\\Users\\yalva\\.gradle\\caches\\modules-2\\files-2.1\\com.google.prefab\\cli\\2.1.0\\aa32fec809c44fa531f01dcfb739b5b3304d3050\\cli-2.1.0-all.jar"
++    ],
++    "prefabPackages": [
++      "C:\\Users\\yalva\\.gradle\\caches\\8.14.3\\transforms\\52fba397ee69a489802542663b2a7886\\transformed\\react-android-0.81.5-debug\\prefab",
++      "C:\\Users\\yalva\\.gradle\\caches\\8.14.3\\transforms\\6347936a505aab872d9b18fa868e791d\\transformed\\fbjni-0.7.0\\prefab"
++    ],
++    "prefabPackageConfigurations": [],
++    "stlType": "c++_shared",
++    "optimizationTag": "Debug"
++  },
++  "buildSettings": {
++    "environmentVariables": []
++  },
++  "prefabFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\prefab\\arm64-v8a",
++  "isActiveAbi": true,
++  "fullConfigurationHash": "3r5f592x5i3g1a514o5j66d3930511h1wo211j4u6d1d3uh1sp4z5g4gl6y",
++  "fullConfigurationHashKey": "# Values used to calculate the hash in this folder name.\n# Should not depend on the absolute path of the project itself.\n#   - AGP: 8.11.0.\n#   - $NDK is the path to NDK 27.1.12297006.\n#   - $PROJECT is the path to the parent folder of the root Gradle build file.\n#   - $ABI is the ABI to be built with. The specific value doesn\u0027t contribute to the value of the hash.\n#   - $HASH is the hash value computed from this text.\n#   - $CMAKE is the path to CMake 3.22.1.\n#   - $NINJA is the path to Ninja.\n-HC:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/android\n-DCMAKE_SYSTEM_NAME\u003dAndroid\n-DCMAKE_EXPORT_COMPILE_COMMANDS\u003dON\n-DCMAKE_SYSTEM_VERSION\u003d24\n-DANDROID_PLATFORM\u003dandroid-24\n-DANDROID_ABI\u003d$ABI\n-DCMAKE_ANDROID_ARCH_ABI\u003d$ABI\n-DANDROID_NDK\u003d$NDK\n-DCMAKE_ANDROID_NDK\u003d$NDK\n-DCMAKE_TOOLCHAIN_FILE\u003d$NDK/build/cmake/android.toolchain.cmake\n-DCMAKE_MAKE_PROGRAM\u003d$NINJA\n-DCMAKE_CXX_FLAGS\u003d-fexceptions -frtti -std\u003dc++1y -DONANDROID\n-DCMAKE_LIBRARY_OUTPUT_DIRECTORY\u003dC:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/$HASH/obj/$ABI\n-DCMAKE_RUNTIME_OUTPUT_DIRECTORY\u003dC:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/$HASH/obj/$ABI\n-DCMAKE_BUILD_TYPE\u003dDebug\n-DCMAKE_FIND_ROOT_PATH\u003dC:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/android/.cxx/Debug/$HASH/prefab/$ABI/prefab\n-BC:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/android/.cxx/Debug/$HASH/$ABI\n-GNinja\n-DANDROID_STL\u003dc++_shared\n-DREACT_NATIVE_VERSION\u003d81\n-DNODE_MODULES_DIR\u003dC:/Users/yalva/source/repos/cdpi-wallet/node_modules\n-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES\u003dON",
++  "configurationArguments": [
++    "-HC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android",
++    "-DCMAKE_SYSTEM_NAME\u003dAndroid",
++    "-DCMAKE_EXPORT_COMPILE_COMMANDS\u003dON",
++    "-DCMAKE_SYSTEM_VERSION\u003d24",
++    "-DANDROID_PLATFORM\u003dandroid-24",
++    "-DANDROID_ABI\u003darm64-v8a",
++    "-DCMAKE_ANDROID_ARCH_ABI\u003darm64-v8a",
++    "-DANDROID_NDK\u003dC:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006",
++    "-DCMAKE_ANDROID_NDK\u003dC:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006",
++    "-DCMAKE_TOOLCHAIN_FILE\u003dC:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\build\\cmake\\android.toolchain.cmake",
++    "-DCMAKE_MAKE_PROGRAM\u003dC:\\Program Files (x86)\\Android\\android-sdk\\cmake\\3.22.1\\bin\\ninja.exe",
++    "-DCMAKE_CXX_FLAGS\u003d-fexceptions -frtti -std\u003dc++1y -DONANDROID",
++    "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY\u003dC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx\\Debug\\3r5f592x\\obj\\arm64-v8a",
++    "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY\u003dC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx\\Debug\\3r5f592x\\obj\\arm64-v8a",
++    "-DCMAKE_BUILD_TYPE\u003dDebug",
++    "-DCMAKE_FIND_ROOT_PATH\u003dC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\prefab\\arm64-v8a\\prefab",
++    "-BC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\arm64-v8a",
++    "-GNinja",
++    "-DANDROID_STL\u003dc++_shared",
++    "-DREACT_NATIVE_VERSION\u003d81",
++    "-DNODE_MODULES_DIR\u003dC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules",
++    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES\u003dON"
++  ],
++  "stlLibraryFile": "C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\aarch64-linux-android\\libc++_shared.so",
++  "intermediatesParentFolder": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx\\Debug\\3r5f592x"
++}
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stacktrace_askarreactnative.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stacktrace_askarreactnative.txt
+new file mode 100644
+index 0000000..25244d7
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stacktrace_askarreactnative.txt
+@@ -0,0 +1,146 @@
++com.android.ide.common.process.ProcessException: Error while executing process "C:\Program Files (x86)\Android\android-sdk\cmake\3.22.1\bin\ninja.exe" with arguments {-C C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\.cxx\Debug\3r5f592x\arm64-v8a askarreactnative}
++com.android.ide.common.process.ProcessException: Error while executing process "C:\Program Files (x86)\Android\android-sdk\cmake\3.22.1\bin\ninja.exe" with arguments {-C C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\.cxx\Debug\3r5f592x\arm64-v8a askarreactnative}
++	at com.android.build.gradle.internal.process.GradleProcessResult.buildProcessException(GradleProcessResult.java:73)
++	at com.android.build.gradle.internal.process.GradleProcessResult.assertNormalExitValue(GradleProcessResult.java:48)
++	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.execute(ExecuteProcess.kt:277)
++	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt$executeProcess$1.invoke(ExecuteProcess.kt:108)
++	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt$executeProcess$1.invoke(ExecuteProcess.kt:106)
++	at com.android.build.gradle.internal.cxx.timing.TimingEnvironmentKt.time(TimingEnvironment.kt:32)
++	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.executeProcess(ExecuteProcess.kt:106)
++	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.executeProcess$default(ExecuteProcess.kt:85)
++	at com.android.build.gradle.internal.cxx.build.CxxRegularBuilder.executeProcessBatch(CxxRegularBuilder.kt:332)
++	at com.android.build.gradle.internal.cxx.build.CxxRegularBuilder.build(CxxRegularBuilder.kt:129)
++	at com.android.build.gradle.tasks.ExternalNativeBuildTask.doTaskAction(ExternalNativeBuildTask.kt:72)
++	at com.android.build.gradle.internal.tasks.UnsafeOutputsTask$taskAction$$inlined$recordTaskAction$1.invoke(BaseTask.kt:59)
++	at com.android.build.gradle.internal.tasks.Blocks.recordSpan(Blocks.java:51)
++	at com.android.build.gradle.internal.tasks.UnsafeOutputsTask.taskAction(UnsafeOutputsTask.kt:81)
++	at jdk.internal.reflect.GeneratedMethodAccessor1084.invoke(Unknown Source)
++	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
++	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
++	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
++	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.doExecute(StandardTaskAction.java:58)
++	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:51)
++	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:29)
++	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:244)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
++	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:229)
++	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:212)
++	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:195)
++	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:162)
++	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:105)
++	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
++	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:59)
++	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:56)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
++	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:56)
++	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
++	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
++	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
++	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
++	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:50)
++	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:28)
++	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
++	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
++	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:61)
++	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:26)
++	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
++	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
++	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
++	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
++	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
++	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:75)
++	at org.gradle.internal.Either$Right.fold(Either.java:175)
++	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
++	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:73)
++	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:48)
++	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:46)
++	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:35)
++	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
++	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
++	at java.base/java.util.Optional.orElseGet(Optional.java:364)
++	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
++	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
++	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
++	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
++	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:49)
++	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:27)
++	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
++	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
++	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
++	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
++	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
++	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
++	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
++	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
++	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
++	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:56)
++	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
++	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
++	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
++	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
++	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
++	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
++	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
++	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
++	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
++	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
++	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
++	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
++	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
++	at java.base/java.util.Optional.orElseGet(Optional.java:364)
++	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
++	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
++	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
++	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
++	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
++	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
++	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:64)
++	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
++	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
++	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskExecuter.java:41)
++	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
++	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
++	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
++	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
++	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
++	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
++	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
++	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
++	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
++	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
++	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
++	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
++	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
++	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
++	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
++	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
++	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
++	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
++	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
++	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
++	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
++	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.base/java.lang.Thread.run(Thread.java:840)
++Caused by: org.gradle.process.internal.ExecException: Process 'command '"C:\Program Files (x86)\Android\android-sdk\cmake\3.22.1\bin\ninja.exe"'' finished with non-zero exit value 1
++	at org.gradle.process.internal.DefaultExecHandle$ExecResultImpl.assertNormalExitValue(DefaultExecHandle.java:442)
++	at com.android.build.gradle.internal.process.GradleProcessResult.assertNormalExitValue(GradleProcessResult.java:46)
++	... 138 more
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stderr_askarreactnative.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stderr_askarreactnative.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stdout_askarreactnative.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stdout_askarreactnative.txt
+new file mode 100644
+index 0000000..410e762
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/build_stdout_askarreactnative.txt
+@@ -0,0 +1,145 @@
++ninja: Entering directory `C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\.cxx\Debug\3r5f592x\arm64-v8a'
++[1/1] Linking CXX shared library ..\..\..\..\build\intermediates\cxx\Debug\3r5f592x\obj\arm64-v8a\libaskarreactnative.so
++FAILED: ../../../../build/intermediates/cxx/Debug/3r5f592x/obj/arm64-v8a/libaskarreactnative.so 
++cmd.exe /C "cd . && C:\PROGRA~2\Android\ANDROI~1\ndk\271~1.122\TOOLCH~1\llvm\prebuilt\WINDOW~1\bin\CLANG_~1.EXE --target=aarch64-none-linux-android24 --sysroot="C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot" -fPIC -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D__BIONIC_NO_PAGE_SIZE_MACRO -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fexceptions -frtti -std=c++1y -DONANDROID -fno-limit-debug-info  -Wl,-z,max-page-size=16384 -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments -shared -Wl,-soname,libaskarreactnative.so -o ..\..\..\..\build\intermediates\cxx\Debug\3r5f592x\obj\arm64-v8a\libaskarreactnative.so CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/HostObject.cpp.o CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/askar.cpp.o -LC:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/native/mobile/android/arm64-v8a C:/Users/yalva/.gradle/caches/8.14.3/transforms/52fba397ee69a489802542663b2a7886/transformed/react-android-0.81.5-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so  -laries_askar  C:/Users/yalva/.gradle/caches/8.14.3/transforms/52fba397ee69a489802542663b2a7886/transformed/react-android-0.81.5-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so  C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so  -latomic -lm && cd ."
++ld.lld: error: undefined symbol: operator delete(void*)
++>>> referenced by function.h:250 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/__functional/function.h:250)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__ndk1::__function::__func<JNI_OnLoad::$_0, std::__ndk1::allocator<JNI_OnLoad::$_0>, void ()>::~__func())
++>>> referenced by new:280 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:280)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(void std::__ndk1::__libcpp_operator_delete[abi:ne180000]<void*>(void*))
++>>> referenced by askar.cpp:139 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/askar.cpp:139)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/askar.cpp.o:(askar::storeCopy(facebook::jsi::Runtime&, facebook::jsi::Object))
++>>> referenced 39 more times
++
++ld.lld: error: undefined symbol: __cxa_allocate_exception
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++>>> referenced by HostObject.cpp:200 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/HostObject.cpp:200)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/HostObject.cpp.o:(AskarTurboModuleHostObject::get(facebook::jsi::Runtime&, facebook::jsi::PropNameID const&))
++>>> referenced by turboModuleUtility.cpp:405 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:405)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(unsigned char askarTurboModuleUtility::jsiToValue<unsigned char>(facebook::jsi::Runtime&, facebook::jsi::Object&, char const*, bool))
++>>> referenced 10 more times
++
++ld.lld: error: undefined symbol: std::bad_array_new_length::bad_array_new_length()
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++
++ld.lld: error: undefined symbol: typeinfo for std::bad_array_new_length
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++
++ld.lld: error: undefined symbol: std::bad_array_new_length::~bad_array_new_length()
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++
++ld.lld: error: undefined symbol: __cxa_throw
++>>> referenced by new:174 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:174)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(std::__throw_bad_array_new_length[abi:ne180000]())
++>>> referenced by HostObject.cpp:200 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/HostObject.cpp:200)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/HostObject.cpp.o:(AskarTurboModuleHostObject::get(facebook::jsi::Runtime&, facebook::jsi::PropNameID const&))
++>>> referenced by turboModuleUtility.cpp:405 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:405)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(unsigned char askarTurboModuleUtility::jsiToValue<unsigned char>(facebook::jsi::Runtime&, facebook::jsi::Object&, char const*, bool))
++>>> referenced 10 more times
++
++ld.lld: error: undefined symbol: operator new(unsigned long, std::align_val_t)
++>>> referenced by new:271 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:271)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(void* std::__ndk1::__libcpp_operator_new[abi:ne180000]<unsigned long, std::align_val_t>(unsigned long, std::align_val_t))
++
++ld.lld: error: undefined symbol: operator new(unsigned long)
++>>> referenced by new:271 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:271)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(void* std::__ndk1::__libcpp_operator_new[abi:ne180000]<unsigned long>(unsigned long))
++>>> referenced by askar.cpp:139 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/askar.cpp:139)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/askar.cpp.o:(askar::storeCopy(facebook::jsi::Runtime&, facebook::jsi::Object))
++>>> referenced by askar.cpp:159 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/askar.cpp:159)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/askar.cpp.o:(askar::storeOpen(facebook::jsi::Runtime&, facebook::jsi::Object))
++>>> referenced 27 more times
++
++ld.lld: error: undefined symbol: __cxa_begin_catch
++>>> referenced by cpp-adapter.cpp
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(__clang_call_terminate)
++>>> referenced by Registration-inl.h:97 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/Registration-inl.h:97)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::detail::FunctionWrapper<void (*)(facebook::jni::alias_ref<facebook::jni::JClass>, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>), facebook::jni::JClass, void, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>>::call(_JNIEnv*, _jobject*, long, facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*, void (*)(facebook::jni::alias_ref<facebook::jni::JClass>, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>)))
++
++ld.lld: error: undefined symbol: std::terminate()
++>>> referenced by cpp-adapter.cpp
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(__clang_call_terminate)
++
++ld.lld: error: undefined symbol: operator delete(void*, std::align_val_t)
++>>> referenced by new:280 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/new:280)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(void std::__ndk1::__libcpp_operator_delete[abi:ne180000]<void*, std::align_val_t>(void*, std::align_val_t))
++
++ld.lld: error: undefined symbol: std::__ndk1::to_string(long)
++>>> referenced by turboModuleUtility.cpp:207 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:207)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(facebook::jsi::Value askarTurboModuleUtility::createReturnValue<ArcHandle_LocalKey*>(facebook::jsi::Runtime&, ErrorCode, ArcHandle_LocalKey*))
++>>> referenced by turboModuleUtility.cpp:216 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:216)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(facebook::jsi::Value askarTurboModuleUtility::createReturnValue<ArcHandle_FfiEntryList const*>(facebook::jsi::Runtime&, ErrorCode, ArcHandle_FfiEntryList const*))
++>>> referenced by turboModuleUtility.cpp:225 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:225)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(facebook::jsi::Value askarTurboModuleUtility::createReturnValue<ArcHandle_FfiKeyEntryList const*>(facebook::jsi::Runtime&, ErrorCode, ArcHandle_FfiKeyEntryList const*))
++>>> referenced 1 more times
++
++ld.lld: error: undefined symbol: std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::~basic_string()
++>>> referenced by turboModuleUtility.cpp:205 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:205)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(facebook::jsi::Value askarTurboModuleUtility::createReturnValue<ArcHandle_LocalKey*>(facebook::jsi::Runtime&, ErrorCode, ArcHandle_LocalKey*))
++>>> referenced by turboModuleUtility.cpp:205 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:205)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(facebook::jsi::Value askarTurboModuleUtility::createReturnValue<ArcHandle_LocalKey*>(facebook::jsi::Runtime&, ErrorCode, ArcHandle_LocalKey*))
++>>> referenced by turboModuleUtility.cpp:214 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:214)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(facebook::jsi::Value askarTurboModuleUtility::createReturnValue<ArcHandle_FfiEntryList const*>(facebook::jsi::Runtime&, ErrorCode, ArcHandle_FfiEntryList const*))
++>>> referenced 187 more times
++
++ld.lld: error: undefined symbol: __cxa_guard_acquire
++>>> referenced by CoreClasses-inl.h:683 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/CoreClasses-inl.h:683)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::JavaClass<AskarModule, facebook::jni::JObject, void>::javaClassStatic())
++>>> referenced by Hybrid.h:336 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/Hybrid.h:336)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart::cthis() const)
++>>> referenced by CoreClasses-inl.h:683 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/CoreClasses-inl.h:683)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::JavaClass<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::javaClassStatic())
++>>> referenced 3 more times
++
++ld.lld: error: undefined symbol: std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::__init(char const*, unsigned long)
++>>> referenced by string:954 (C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/c++/v1/string:954)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/HostObject.cpp.o:(std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>::basic_string[abi:ne180000]<0>(char const*))
++
++ld.lld: error: undefined symbol: __cxa_guard_release
++>>> referenced by CoreClasses-inl.h:683 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/CoreClasses-inl.h:683)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::JavaClass<AskarModule, facebook::jni::JObject, void>::javaClassStatic())
++>>> referenced by Hybrid.h:336 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/Hybrid.h:336)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart::cthis() const)
++>>> referenced by CoreClasses-inl.h:683 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/CoreClasses-inl.h:683)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::JavaClass<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::javaClassStatic())
++>>> referenced 3 more times
++
++ld.lld: error: undefined symbol: __cxa_guard_abort
++>>> referenced by CoreClasses-inl.h:683 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/CoreClasses-inl.h:683)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::JavaClass<AskarModule, facebook::jni::JObject, void>::javaClassStatic())
++>>> referenced by Hybrid.h:336 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/Hybrid.h:336)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart::cthis() const)
++>>> referenced by CoreClasses-inl.h:683 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/CoreClasses-inl.h:683)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::JavaClass<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::javaClassStatic())
++>>> referenced 3 more times
++
++ld.lld: error: undefined symbol: std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> std::__ndk1::operator+<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>(char const*, std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const&)
++>>> referenced by HostObject.cpp:200 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/HostObject.cpp:200)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/HostObject.cpp.o:(AskarTurboModuleHostObject::get(facebook::jsi::Runtime&, facebook::jsi::PropNameID const&))
++
++ld.lld: error: undefined symbol: __cxa_free_exception
++>>> referenced by turboModuleUtility.cpp:405 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:405)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(unsigned char askarTurboModuleUtility::jsiToValue<unsigned char>(facebook::jsi::Runtime&, facebook::jsi::Object&, char const*, bool))
++>>> referenced by HostObject.cpp:200 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/HostObject.cpp:200)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/HostObject.cpp.o:(AskarTurboModuleHostObject::get(facebook::jsi::Runtime&, facebook::jsi::PropNameID const&))
++>>> referenced by turboModuleUtility.cpp:418 (C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/cpp/turboModuleUtility.cpp:418)
++>>>               CMakeFiles/askarreactnative.dir/51444acd15b49d86c4360bb5637deef4/askar-react-native/cpp/turboModuleUtility.cpp.o:(signed char askarTurboModuleUtility::jsiToValue<signed char>(facebook::jsi::Runtime&, facebook::jsi::Object&, char const*, bool))
++>>> referenced 9 more times
++
++ld.lld: error: undefined symbol: __cxa_end_catch
++>>> referenced by Registration-inl.h:100 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/Registration-inl.h:100)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::detail::FunctionWrapper<void (*)(facebook::jni::alias_ref<facebook::jni::JClass>, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>), facebook::jni::JClass, void, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>>::call(_JNIEnv*, _jobject*, long, facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*, void (*)(facebook::jni::alias_ref<facebook::jni::JClass>, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>)))
++>>> referenced by Registration-inl.h:100 (C:/Users/yalva/.gradle/caches/8.14.3/transforms/6347936a505aab872d9b18fa868e791d/transformed/fbjni-0.7.0/prefab/modules/fbjni/include/fbjni/detail/Registration-inl.h:100)
++>>>               CMakeFiles/askarreactnative.dir/cpp-adapter.cpp.o:(facebook::jni::detail::FunctionWrapper<void (*)(facebook::jni::alias_ref<facebook::jni::JClass>, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>), facebook::jni::JClass, void, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>>::call(_JNIEnv*, _jobject*, long, facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*, void (*)(facebook::jni::alias_ref<facebook::jni::JClass>, long, facebook::jni::alias_ref<facebook::jni::detail::JTypeFor<facebook::jni::HybridClass<facebook::react::CallInvokerHolder, facebook::jni::detail::BaseHybridClass>::JavaPart, facebook::jni::JObject, void>::_javaobject*>)))
++
++ld.lld: error: too many errors emitted, stopping now (use --error-limit=0 to see all errors)
++CLANG_~1: error: linker command failed with exit code 1 (use -v to see invocation)
++ninja: build stopped: subcommand failed.
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_command.bat b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_command.bat
+new file mode 100644
+index 0000000..0ba62a3
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_command.bat
+@@ -0,0 +1,24 @@
++@echo off
++"C:\\Program Files (x86)\\Android\\android-sdk\\cmake\\3.22.1\\bin\\cmake.exe" ^
++  "-HC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android" ^
++  "-DCMAKE_SYSTEM_NAME=Android" ^
++  "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON" ^
++  "-DCMAKE_SYSTEM_VERSION=24" ^
++  "-DANDROID_PLATFORM=android-24" ^
++  "-DANDROID_ABI=arm64-v8a" ^
++  "-DCMAKE_ANDROID_ARCH_ABI=arm64-v8a" ^
++  "-DANDROID_NDK=C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006" ^
++  "-DCMAKE_ANDROID_NDK=C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006" ^
++  "-DCMAKE_TOOLCHAIN_FILE=C:\\Program Files (x86)\\Android\\android-sdk\\ndk\\27.1.12297006\\build\\cmake\\android.toolchain.cmake" ^
++  "-DCMAKE_MAKE_PROGRAM=C:\\Program Files (x86)\\Android\\android-sdk\\cmake\\3.22.1\\bin\\ninja.exe" ^
++  "-DCMAKE_CXX_FLAGS=-fexceptions -frtti -std=c++1y -DONANDROID" ^
++  "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx\\Debug\\3r5f592x\\obj\\arm64-v8a" ^
++  "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\build\\intermediates\\cxx\\Debug\\3r5f592x\\obj\\arm64-v8a" ^
++  "-DCMAKE_BUILD_TYPE=Debug" ^
++  "-DCMAKE_FIND_ROOT_PATH=C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\prefab\\arm64-v8a\\prefab" ^
++  "-BC:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\arm64-v8a" ^
++  -GNinja ^
++  "-DANDROID_STL=c++_shared" ^
++  "-DREACT_NATIVE_VERSION=81" ^
++  "-DNODE_MODULES_DIR=C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules" ^
++  "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_stderr.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_stderr.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_stdout.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_stdout.txt
+new file mode 100644
+index 0000000..ebdb343
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/configure_stdout.txt
+@@ -0,0 +1,15 @@
++-- The C compiler identification is Clang 18.0.2
++-- The CXX compiler identification is Clang 18.0.2
++-- Detecting C compiler ABI info
++-- Detecting C compiler ABI info - done
++-- Check for working C compiler: C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe - skipped
++-- Detecting C compile features
++-- Detecting C compile features - done
++-- Detecting CXX compiler ABI info
++-- Detecting CXX compiler ABI info - done
++-- Check for working CXX compiler: C:/Program Files (x86)/Android/android-sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/windows-x86_64/bin/clang++.exe - skipped
++-- Detecting CXX compile features
++-- Detecting CXX compile features - done
++-- Configuring done
++-- Generating done
++-- Build files have been written to: C:/Users/yalva/source/repos/cdpi-wallet/node_modules/@openwallet-foundation/askar-react-native/android/.cxx/Debug/3r5f592x/arm64-v8a
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1414_timing.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1414_timing.txt
+new file mode 100644
+index 0000000..f92354b
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1414_timing.txt
+@@ -0,0 +1,18 @@
++# C/C++ build system timings
++generate_cxx_metadata
++  generate-prefab-packages
++    [gap of 160ms]
++    exec-prefab 1064ms
++    [gap of 98ms]
++  generate-prefab-packages completed in 1322ms
++  execute-generate-process
++    [gap of 47ms]
++    exec-configure 16273ms
++    [gap of 177ms]
++  execute-generate-process completed in 16497ms
++  [gap of 79ms]
++  remove-unexpected-so-files 44ms
++  [gap of 783ms]
++  write-metadata-json-to-file 28ms
++generate_cxx_metadata completed in 18905ms
++
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1699_timing.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1699_timing.txt
+new file mode 100644
+index 0000000..3f2b37d
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1699_timing.txt
+@@ -0,0 +1,7 @@
++# C/C++ build system timings
++generate_cxx_metadata
++  [gap of 14ms]
++  create-invalidation-state 111ms
++  [gap of 56ms]
++generate_cxx_metadata completed in 181ms
++
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1891_timing.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1891_timing.txt
+new file mode 100644
+index 0000000..eb9a127
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_1891_timing.txt
+@@ -0,0 +1,6 @@
++# C/C++ build system timings
++generate_cxx_metadata
++  create-invalidation-state 24ms
++  [gap of 27ms]
++generate_cxx_metadata completed in 56ms
++
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_2096_timing.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_2096_timing.txt
+new file mode 100644
+index 0000000..ae7c2b6
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_2096_timing.txt
+@@ -0,0 +1,7 @@
++# C/C++ build system timings
++generate_cxx_metadata
++  create-invalidation-state 82ms
++  [gap of 88ms]
++  write-metadata-json-to-file 12ms
++generate_cxx_metadata completed in 191ms
++
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_2268_timing.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_2268_timing.txt
+new file mode 100644
+index 0000000..ffad413
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/generate_cxx_metadata_2268_timing.txt
+@@ -0,0 +1,6 @@
++# C/C++ build system timings
++generate_cxx_metadata
++  create-invalidation-state 59ms
++  [gap of 52ms]
++generate_cxx_metadata completed in 117ms
++
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/metadata_generation_record.json b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/metadata_generation_record.json
+new file mode 100644
+index 0000000..410f91d
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/metadata_generation_record.json
+@@ -0,0 +1,41 @@
++[
++  {
++    "level_": 0,
++    "message_": "Start JSON generation. Platform version: 24 min SDK version: arm64-v8a",
++    "file_": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\CMakeLists.txt",
++    "tag_": "debug|arm64-v8a",
++    "diagnosticCode_": 0,
++    "memoizedIsInitialized": 1,
++    "unknownFields": {
++      "fields": {}
++    },
++    "memoizedSize": -1,
++    "memoizedHashCode": 0
++  },
++  {
++    "level_": 0,
++    "message_": "JSON \u0027C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\.cxx\\Debug\\3r5f592x\\arm64-v8a\\android_gradle_build.json\u0027 was up-to-date",
++    "file_": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\CMakeLists.txt",
++    "tag_": "debug|arm64-v8a",
++    "diagnosticCode_": 0,
++    "memoizedIsInitialized": 1,
++    "unknownFields": {
++      "fields": {}
++    },
++    "memoizedSize": -1,
++    "memoizedHashCode": 0
++  },
++  {
++    "level_": 0,
++    "message_": "JSON generation completed without problems",
++    "file_": "C:\\Users\\yalva\\source\\repos\\cdpi-wallet\\node_modules\\@openwallet-foundation\\askar-react-native\\android\\CMakeLists.txt",
++    "tag_": "debug|arm64-v8a",
++    "diagnosticCode_": 0,
++    "memoizedIsInitialized": 1,
++    "unknownFields": {
++      "fields": {}
++    },
++    "memoizedSize": -1,
++    "memoizedHashCode": 0
++  }
++]
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_command.bat b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_command.bat
+new file mode 100644
+index 0000000..6516603
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_command.bat
+@@ -0,0 +1,21 @@
++@echo off
++"C:\\Program Files\\Microsoft\\jdk-17.0.10.7-hotspot\\bin\\java" ^
++  --class-path ^
++  "C:\\Users\\yalva\\.gradle\\caches\\modules-2\\files-2.1\\com.google.prefab\\cli\\2.1.0\\aa32fec809c44fa531f01dcfb739b5b3304d3050\\cli-2.1.0-all.jar" ^
++  com.google.prefab.cli.AppKt ^
++  --build-system ^
++  cmake ^
++  --platform ^
++  android ^
++  --abi ^
++  arm64-v8a ^
++  --os-version ^
++  24 ^
++  --stl ^
++  c++_shared ^
++  --ndk-version ^
++  27 ^
++  --output ^
++  "C:\\Users\\yalva\\AppData\\Local\\Temp\\agp-prefab-staging3191475433401929756\\staged-cli-output" ^
++  "C:\\Users\\yalva\\.gradle\\caches\\8.14.3\\transforms\\52fba397ee69a489802542663b2a7886\\transformed\\react-android-0.81.5-debug\\prefab" ^
++  "C:\\Users\\yalva\\.gradle\\caches\\8.14.3\\transforms\\6347936a505aab872d9b18fa868e791d\\transformed\\fbjni-0.7.0\\prefab"
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_stderr.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_stderr.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_stdout.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/cxx/Debug/3r5f592x/logs/arm64-v8a/prefab_stdout.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..d5af393
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed Apr 29 18:22:34 AST 2026
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..93e9d61
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\build\generated\res\resValues\debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\build\generated\res\resValues\debug"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/mergeDebugAssets/merger.xml b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/mergeDebugAssets/merger.xml
+new file mode 100644
+index 0000000..4cd833e
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/mergeDebugAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\debug\assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\build\intermediates\shader_assets\debug\compileDebugShaders\out"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/mergeDebugShaders/merger.xml b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
+new file mode 100644
+index 0000000..291accd
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\shaders"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\debug\shaders"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/AskarModule.class b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/AskarModule.class
+new file mode 100644
+index 0000000..bf8fefa
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/AskarModule.class differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/AskarPackage.class b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/AskarPackage.class
+new file mode 100644
+index 0000000..728f213
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/AskarPackage.class differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/BuildConfig.class b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/BuildConfig.class
+new file mode 100644
+index 0000000..51d6192
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/foundation/openwallet/askar/BuildConfig.class differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+new file mode 100644
+index 0000000..0ea37bb
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+@@ -0,0 +1,7 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="foundation.openwallet.askar" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++6
++7</manifest>
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..6bcdc84
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="foundation.openwallet.askar" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar
+new file mode 100644
+index 0000000..f3cd1c2
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar differ
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..6b1390f
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++foundation.openwallet.askar
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/outputs/logs/manifest-merger-debug-report.txt b/node_modules/@openwallet-foundation/askar-react-native/android/build/outputs/logs/manifest-merger-debug-report.txt
+new file mode 100644
+index 0000000..64657c7
+--- /dev/null
++++ b/node_modules/@openwallet-foundation/askar-react-native/android/build/outputs/logs/manifest-merger-debug-report.txt
+@@ -0,0 +1,17 @@
++-- Merging decision tree log ---
++manifest
++ADDED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml:1:1-3:12
++INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml:1:1-3:12
++	package
++		ADDED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml:2:11-48
++		INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml
++	xmlns:android
++		ADDED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml:1:11-69
++uses-sdk
++INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml
++INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from C:\Users\yalva\source\repos\cdpi-wallet\node_modules\@openwallet-foundation\askar-react-native\android\src\main\AndroidManifest.xml
+diff --git a/node_modules/@openwallet-foundation/askar-react-native/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin b/node_modules/@openwallet-foundation/askar-react-native/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
+new file mode 100644
+index 0000000..8a2bebc
+Binary files /dev/null and b/node_modules/@openwallet-foundation/askar-react-native/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin differ

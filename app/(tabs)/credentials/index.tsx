@@ -74,7 +74,7 @@ export default function CredentialList() {
           <Text style={styles.emptyIcon}>🪪</Text>
           <Text style={styles.emptyTitle}>Sin credenciales</Text>
           <Text style={styles.emptyBody}>
-            Escanea el QR de tu emisor para recibir tu primera credencial.
+            Escanea el QR de tu emisor o pega un enlace OpenID para recibir tu primera credencial.
           </Text>
           <TouchableOpacity
             style={[styles.scanBtn, { backgroundColor: branding.primaryColor }]}

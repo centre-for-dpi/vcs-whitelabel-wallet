@@ -9,8 +9,19 @@
     "splash": {
       "backgroundColor": "#FFFFFF"
     },
+    "ios": {
+      "bundleIdentifier": "org.cdpi.wallet",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Permite acceder a la cámara para escanear códigos QR.",
+        "NSFaceIDUsageDescription": "Permite usar Face ID para proteger tu billetera.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "android": {
       "package": "org.cdpi.wallet",
+      "compileSdkVersion": 32,
+      "targetSdkVersion": 32,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF"
       },
@@ -21,17 +32,7 @@
           "data": [
             {
               "scheme": "openid-credential-offer"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        },
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
+            },
             {
               "scheme": "openid4vp"
             }
@@ -41,14 +42,18 @@
             "DEFAULT"
           ]
         }
+      ],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
-    "ios": {
-      "bundleIdentifier": "org.cdpi.wallet",
-      "supportsTablet": false
-    },
     "plugins": [
+      "expo-router",
       "expo-dev-client",
+      "expo-secure-store",
       [
         "expo-camera",
         {
@@ -60,9 +65,13 @@
         {
           "faceIDPermission": "Permite usar Face ID para proteger tu billetera."
         }
-      ],
-      "expo-secure-store",
-      "expo-router"
-    ]
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "896ee82f-34f5-46cf-8d08-112b7ebaa82e"
+      }
+    }
   }
 }
