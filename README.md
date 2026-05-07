@@ -1,24 +1,22 @@
-# CDPI Wallet
+# VCS Whitelabel Wallet
 
-Billetera móvil de credenciales verificables basada en [Credo-TS](https://github.com/openwallet-foundation/credo-ts) y Expo. Soporta emisión y presentación de credenciales mediante OpenID4VCI / OpenID4VP, comunicación DIDComm vía mediador y autenticación biométrica.
+Mobile verifiable credential wallet built on [Credo-TS](https://github.com/openwallet-foundation/credo-ts) and Expo. Supports credential issuance and presentation via OpenID4VCI / OpenID4VP, and SSO login via OIDC.
 
 ---
 
-## Requisitos previos
+## Prerequisites
 
-| Herramienta | Versión mínima | Notas |
+| Tool | Min version | Notes |
 |---|---|---|
-| Node.js | 20 LTS | Recomendado |
-| npm | 7+ | Incluido con Node 20 |
-| Expo CLI | latest | `npm install -g expo-cli` |
-| EAS CLI | 12.0+ | `npm install -g eas-cli` (solo para builds) |
-| Android Studio | latest | Para emulador Android o compilación nativa |
-| Xcode | 15+ | Solo macOS, para iOS |
-| Docker & Docker Compose | latest | Solo si se levanta el mediador localmente |
+| Node.js | 20 LTS | |
+| npm | 7+ | Bundled with Node 20 |
+| EAS CLI | 12.0+ | `npm install -g eas-cli` — only needed for cloud builds |
+| Android Studio | latest | For Android emulator or native compilation |
+| Xcode | 15+ | macOS only, for iOS |
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
 git clone <repo-url>
@@ -28,161 +26,137 @@ npm install
 
 ---
 
-## Configuración
+## Configuration
 
-Antes de correr la app, editar [branding.config.ts](branding.config.ts) con los valores del entorno de destino:
+Edit [branding.config.ts](branding.config.ts) with the values for your deployment:
 
 ```ts
-// branding.config.ts
-export const appName = "CDPI Wallet";
-
-export const colors = {
-  primary: "#...",
-  secondary: "#...",
-  background: "#...",
-  text: "#...",
+export const branding = {
+  appName: 'My Wallet',
+  primaryColor: '#db1a3d',
+  secondaryColor: '#ffffff',
+  backgroundColor: '#F9FAFB',
+  loginBackgroundColor: '#06095a',
+  headerBackgroundColor: '#06095a',
+  headerLogoTintColor: '#F9FAFB',
+  textColor: '#F9FAFB',
 };
 
-// URL del mediador DIDComm (WebSocket)
-export const mediatorUrl = "ws://<IP_VPS>:3010/ws";
-
-// Emisores de credenciales soportados
-export const issuers = [
-  {
-    label: "Ministerio del Trabajo",
-    url: "http://<IP_VPS>:8091",
-    platform: "credebl", // 'inji' | 'credebl' | 'waltid'
-  },
-];
+// SSO login — configure to enable OIDC authentication
+// Keycloak issuerUrl format: https://<host>/realms/<realm>
+export const oidcConfig = {
+  enabled: true,
+  issuerUrl: 'https://<keycloak-host>/realms/<realm>',
+  clientId: '<client-id>',
+  redirectUri: '<app-scheme>://auth', // register this exactly in Keycloak → Client → Valid redirect URIs
+  scopes: ['openid', 'profile', 'email'],
+  buttonLabel: 'Continue with <provider>',
+};
 ```
+
+Replace the app logo by overwriting `assets/logo.png` (keep the same filename).
+
+> Issuer names and credential type labels are resolved automatically from each OID4VCI issuer's well-known metadata — no manual configuration required.
 
 ---
 
-## Levantar el mediador DIDComm (opcional pero recomendado para desarrollo)
+## Running in development
 
-El mediador permite la comunicación peer-to-peer entre la wallet y los emisores/verificadores.
+Credo-TS requires native modules (Askar, camera, biometrics), so a **dev client** is needed — standard Expo Go will not work.
 
-```bash
-cd mediator
-docker compose up -d
-```
-
-Esto levanta el contenedor `credo-ts-mediator` en el puerto **3010**.  
-Configurar `mediatorUrl` en [branding.config.ts](branding.config.ts) apuntando a la IP de la máquina que corre Docker.
-
----
-
-## Correr la app en desarrollo
-
-### Opción A — Expo Go / Dev Client (recomendado para desarrollo rápido)
-
-```bash
-npm start
-```
-
-Abre el menú de Expo. Desde aquí se puede:
-- Presionar `a` para abrir en emulador Android
-- Presionar `i` para abrir en simulador iOS (solo macOS)
-- Escanear el QR con la app **Expo Go** en un dispositivo físico
-
-> **Nota:** Credo-TS requiere módulos nativos. Para funcionalidad completa (Askar, cámara, biometría) se necesita un **dev client** (ver abajo), no Expo Go estándar.
-
-### Opción B — Dev Client en emulador/dispositivo
-
-Compilar el dev client una sola vez:
+Build the dev client once:
 
 ```bash
 # Android
 npm run android
 
-# iOS (solo macOS)
+# iOS (macOS only)
 npm run ios
 ```
 
-Esto instala la app con todos los módulos nativos. Las iteraciones de JS posteriores no requieren recompilar: solo correr `npm start`.
+This installs the app with all native modules. Subsequent JS changes only require restarting the bundler:
+
+```bash
+npm start
+```
 
 ---
 
-## Builds con EAS
+## EAS Builds
 
-Para generar APK/IPA sin configurar entorno nativo local.
-
-### APK de preview (Android)
+Generate APK/IPA without a local native environment.
 
 ```bash
-npm run build:android:preview
+# Android APK (preview — sideloadable)
+eas build --platform android --profile preview
+
+# Android AAB (production — Play Store)
+eas build --platform android --profile production
+
+# iOS IPA (production — App Store)
+eas build --platform ios --profile production
 ```
 
-Genera un `.apk` instalable directamente en dispositivos Android.
-
-### Build de producción
-
-```bash
-# Android (AAB para Play Store)
-npm run build:android:production
-
-# iOS (IPA para App Store)
-npm run build:ios:production
-```
-
-> Requiere cuenta en [expo.dev](https://expo.dev) y haber ejecutado `eas login`.
+> Requires an [expo.dev](https://expo.dev) account and `eas login`.
 
 ---
 
-## Estructura del proyecto
+## Project structure
 
 ```
 cdpi-wallet/
-├── app/                   # Rutas de Expo Router
-│   ├── index.tsx          # Pantalla inicial
-│   ├── onboarding.tsx     # Flujo de primer uso
-│   ├── unlock.tsx         # Desbloqueo con biometría/PIN
-│   ├── present.tsx        # Presentación de credencial (OpenID4VP)
-│   ├── receive.tsx        # Recepción de credencial (OpenID4VCI)
-│   └── (tabs)/            # Navegación por pestañas
-│       ├── credentials/   # Lista y detalle de credenciales
-│       ├── scan.tsx       # Escáner QR
-│       └── settings.tsx   # Configuración
+├── app/                   # Expo Router routes
+│   ├── index.tsx          # Entry screen
+│   ├── onboarding.tsx     # First-run flow
+│   ├── unlock.tsx         # Biometric / PIN unlock
+│   ├── auth.tsx           # OIDC authentication callback
+│   ├── receive.tsx        # Credential issuance (OpenID4VCI)
+│   ├── present.tsx        # Credential presentation (OpenID4VP)
+│   └── (tabs)/            # Tab navigation
+│       ├── credentials/   # Credential list and detail
+│       ├── scan.tsx       # QR scanner
+│       └── settings.tsx   # Settings and session
 ├── src/
-│   ├── agent/             # Lógica del agente Credo-TS
-│   │   ├── setup.ts       # Inicialización del agente
-│   │   ├── context.tsx    # React Context del agente
-│   │   └── mediator.ts    # Configuración del mediador
-│   ├── components/        # Componentes reutilizables
-│   └── utils/             # Utilidades (storage, QR, credentials)
-├── mediator/
-│   └── docker-compose.yml # Mediador DIDComm local
-├── branding.config.ts     # Configuración por país/despliegue
-├── app.json               # Configuración Expo
-├── eas.json               # Perfiles de build EAS
-└── metro.config.js        # Bundler (soporte .cjs para Credo-TS)
+│   ├── agent/             # Credo-TS agent logic
+│   │   ├── setup.ts       # Agent initialization
+│   │   ├── context.tsx    # Agent React context
+│   │   ├── credentialBinding.ts
+│   │   ├── oid4vci/       # Issuance: requestCredentials, storeCredential, normalizeOffer
+│   │   └── oid4vp/        # Presentation: selectCredentials, presentCredentials, normalizeRequest
+│   ├── auth/              # OIDC user context (UserContext)
+│   ├── components/        # Shared components (CredentialCard)
+│   └── utils/             # Helpers (storage, credential, QR)
+├── assets/                # App logo and images
+├── branding.config.ts     # Per-deployment configuration
+├── app.json               # Expo configuration
+├── eas.json               # EAS build profiles
+└── metro.config.js        # Bundler (.cjs support for Credo-TS)
 ```
 
 ---
 
-## Configuración de deep links
+## Deep links
 
-La app responde a los siguientes esquemas URI para integración con emisores y verificadores:
-
-| Esquema | Uso |
+| Scheme | Purpose |
 |---|---|
-| `openid-credential-offer://` | Recibir oferta de credencial (OpenID4VCI) |
-| `openid4vp://` | Responder a solicitud de presentación (OpenID4VP) |
+| `openid-credential-offer://` | Receive a credential offer (OpenID4VCI) |
+| `openid4vp://` | Respond to a presentation request (OpenID4VP) |
+| `<app-scheme>://auth` | OIDC authentication callback |
 
-Estos están declarados en [app.json](app.json) como `intentFilters` para Android y como URL scheme para iOS.
+Declared in [app.json](app.json) as `intentFilters` for Android and as a URL scheme for iOS.
 
 ---
 
 ## Troubleshooting
 
-**Error: `Cannot find module '@openwallet-foundation/askar-react-native'`**  
-Asegurarse de usar el dev client (no Expo Go) y haber compilado con `npm run android` o `npm run ios`.
+**`Cannot find module '@openwallet-foundation/askar-react-native'`**  
+Use the dev client, not Expo Go. Build it first with `npm run android` or `npm run ios`.
 
-**Metro no resuelve paquetes de Credo-TS**  
-Verificar que [metro.config.js](metro.config.js) tenga habilitado `resolver.unstable_enablePackageExports: true` y `sourceExts` incluya `cjs`.
+**Metro cannot resolve Credo-TS packages**  
+Check that [metro.config.js](metro.config.js) has `resolver.unstable_enablePackageExports: true` and `sourceExts` includes `cjs`.
 
-**El mediador no conecta**  
-Verificar que `mediatorUrl` en [branding.config.ts](branding.config.ts) use la IP de red local (no `localhost`) y que el puerto 3010 esté accesible desde el dispositivo.
+**OIDC login does not redirect back to the app**  
+Ensure `redirectUri` in [branding.config.ts](branding.config.ts) is registered exactly in Keycloak → Client → Valid redirect URIs, including the custom scheme.
 
-**Biometría no funciona en emulador**  
-La autenticación biométrica requiere hardware real o un emulador con biometría configurada (Android Studio → Virtual Device → Extended Controls → Fingerprint).
+**Biometrics not working on emulator**  
+Biometric authentication requires real hardware or an emulator with biometrics configured (Android Studio → Virtual Device → Extended Controls → Fingerprint).
