@@ -58,13 +58,24 @@ export default function Receive() {
       const offerMeta = offer.metadata as Record<string, unknown>;
       const credentialIssuer = offerMeta?.credentialIssuer as Record<string, unknown> | undefined;
       const issuerDisplay = credentialIssuer?.display as Array<Record<string, string>> | undefined;
+
+      const configs = (offer.offeredCredentialConfigurations as Record<string, unknown> | undefined) ?? {};
+
+      // Try to extract issuer from the first credential config's description.
+      // Convention: "Credential description · Issued by Issuer Name"
+      const firstConfigDesc = (Object.values(configs)[0] as Record<string, unknown> | undefined);
+      const firstDisplayDesc = (firstConfigDesc?.display as Array<Record<string, string>> | undefined)?.[0]?.description;
+      const issuerFromDesc = firstDisplayDesc?.includes(' · ')
+        ? firstDisplayDesc.split(' · ').pop()?.replace(/^Issued by /i, '') || undefined
+        : undefined;
+
       const issuerName =
         issuerDisplay?.[0]?.name ??
+        issuerFromDesc ??
         (credentialIssuer?.credential_issuer as string | undefined) ??
         (rawOffer.credentialOfferPayload?.credential_issuer as string | undefined) ??
         'Emisor desconocido';
 
-      const configs = (offer.offeredCredentialConfigurations as Record<string, unknown> | undefined) ?? {};
       const credNames = Object.entries(configs).map(([configId, c]) => {
         const cfg = c as Record<string, unknown>;
         const display = cfg.display as Array<Record<string, string>> | undefined;
