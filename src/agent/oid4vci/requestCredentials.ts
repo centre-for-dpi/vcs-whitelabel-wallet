@@ -13,6 +13,7 @@ export type TokenResponse = {
 export type DcSdJwtResult = {
   path: 'dc+sd-jwt';
   configId: string;
+  displayName?: string;
   compactJwt: string;
   keyId: string;
   vct: string;
@@ -27,6 +28,7 @@ export type ManualJwtResult = {
   path: 'manual-jwt';
   format: string;         // e.g. 'jwt_vc_json', 'vc+sd-jwt'
   configId: string;
+  displayName?: string;
   compactJwt: string;
   keyId: string;
   credentialType: string; // specific type, e.g. 'AlumniCard'
@@ -117,6 +119,8 @@ export async function requestOid4VciCredentials(
   for (const [configId, config] of configs) {
     const format = config.format as string;
 
+    const displayName = (config.display as Array<Record<string, string>> | undefined)?.[0]?.name;
+
     if (format === 'dc+sd-jwt') {
       // ── dc+sd-jwt: always manual POST ──────────────────────────────────────────
       const vct = config.vct as string;
@@ -138,7 +142,7 @@ export async function requestOid4VciCredentials(
       const compactJwt = (data.credential ?? (data.credentials as string[] | undefined)?.[0]) as string | undefined;
       if (!compactJwt) throw new Error('El emisor no retornó una credencial en la respuesta.');
       logJwtStructure('[oid4vci]', compactJwt);
-      results.push({ path: 'dc+sd-jwt', configId, compactJwt, keyId, vct });
+      results.push({ path: 'dc+sd-jwt', configId, displayName, compactJwt, keyId, vct });
 
     } else if (legacy) {
       // ── Other formats on legacy endpoints: manual POST ─────────────────────────
@@ -174,7 +178,7 @@ export async function requestOid4VciCredentials(
       const compactJwt = (data.credential ?? (data.credentials as string[] | undefined)?.[0]) as string | undefined;
       if (!compactJwt) throw new Error('El emisor no retornó una credencial en la respuesta.');
       logJwtStructure('[oid4vci]', compactJwt);
-      results.push({ path: 'manual-jwt', format, configId, compactJwt, keyId, credentialType });
+      results.push({ path: 'manual-jwt', format, configId, displayName, compactJwt, keyId, credentialType });
     }
   }
 

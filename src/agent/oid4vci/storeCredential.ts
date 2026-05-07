@@ -37,13 +37,13 @@ export async function storeOid4VciCredential(
   meta: StorageMeta,
 ): Promise<void> {
   if (result.path === 'dc+sd-jwt') {
-    const { compactJwt, keyId, vct, configId } = result;
+    const { compactJwt, keyId, vct, configId, displayName } = result;
     const record = new SdJwtVcRecord({
       credentialInstances: [{ compactSdJwtVc: compactJwt, kmsKeyId: keyId }],
     });
     const stored = await agent.sdJwtVc.store({ record });
     stored.setTag('issuerName', meta.issuerName);
-    stored.setTag('credentialName', formatConfigId(configId));
+    stored.setTag('credentialName', displayName ?? formatConfigId(configId));
     stored.setTag('credentialVct', vct);
     stored.setTag('holderKeyId', keyId);
     await agent.sdJwtVc.update(stored);
@@ -52,13 +52,13 @@ export async function storeOid4VciCredential(
   }
 
   if (result.path === 'manual-jwt') {
-    const { compactJwt, configId, credentialType, keyId } = result;
+    const { compactJwt, configId, displayName, credentialType, keyId } = result;
     const record = new SdJwtVcRecord({
       credentialInstances: [{ compactSdJwtVc: compactJwt }],
     });
     const stored = await agent.sdJwtVc.store({ record });
     stored.setTag('issuerName', meta.issuerName);
-    stored.setTag('credentialName', formatConfigId(configId));
+    stored.setTag('credentialName', displayName ?? formatConfigId(configId));
     stored.setTag('credentialVct', credentialType);
     stored.setTag('holderKeyId', keyId);
     await agent.sdJwtVc.update(stored);

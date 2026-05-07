@@ -52,15 +52,6 @@ export default function Settings() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Emisores configurados</Text>
-        {branding.issuers.map((issuer) => (
-          <View key={issuer.id}>
-            <Row label={issuer.label} value={issuer.dpg.toUpperCase()} />
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Protocolos soportados</Text>
         <Row label="OID4VCI" value="✓ Activo" />
         <Row label="OID4VP" value="✓ Activo" />

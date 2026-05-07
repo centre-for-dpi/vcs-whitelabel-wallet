@@ -1,5 +1,4 @@
 import type { SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
-import { branding } from '../../branding.config';
 
 export type CredentialEntry = {
   id: string;
@@ -34,7 +33,7 @@ export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
   // tags.issuerName may hold the raw issuer URL set by Credo — still pass it through
   // formatIssuerUrl so branding labels and DID handling apply
   const rawIssuerResolved = typeof tags.issuerName === 'string' ? tags.issuerName : rawIssuer;
-  const issuer = formatIssuerUrl(rawIssuerResolved, type);
+  const issuer = formatIssuerUrl(rawIssuerResolved);
 
   const reserved = new Set(['iss', 'iat', 'exp', 'nbf', 'sub', 'jti', 'vct', 'cnf', '_sd', '_sd_alg', 'status']);
 
@@ -77,29 +76,7 @@ export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
 const humanizeSegment = (segment: string): string =>
   segment.split(/[-_]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-const formatIssuerUrl = (raw: string, credentialType?: string): string => {
-  if (!raw && !credentialType) return 'Emisor desconocido';
-
-  // 1. Match by credential type name against branding issuers — highest priority
-  // Normalize both sides: lowercase + remove spaces to handle camelCase vs spaced variants
-  if (credentialType) {
-    const normalizedType = credentialType.toLowerCase().replace(/\s+/g, '');
-    const byType = branding.issuers.find((i) =>
-      (i.credentials as readonly string[]).some(
-        (c) => c.toLowerCase().replace(/\s+/g, '') === normalizedType,
-      ),
-    );
-    if (byType) return byType.label;
-  }
-
-  // 2. Match by issuer URL against branding issuers
-  if (raw) {
-    const byUrl = branding.issuers.find(
-      (i) => raw.startsWith(i.url) || i.url.startsWith(raw),
-    );
-    if (byUrl) return byUrl.label;
-  }
-
+const formatIssuerUrl = (raw: string): string => {
   if (!raw) return 'Emisor desconocido';
 
   // 3. DID:WEB — extract the domain and humanize it
@@ -150,7 +127,7 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
     typeof vc.issuer === 'string'
       ? vc.issuer
       : (vc.issuer as { id?: string })?.id ?? '';
-  const issuer = formatIssuerUrl(rawIssuer, type);
+  const issuer = formatIssuerUrl(rawIssuer);
 
   const issuanceDate = typeof vc.issuanceDate === 'string'
     ? vc.issuanceDate
@@ -188,7 +165,7 @@ export const fromW3cV2Record = (record: W3cV2CredentialRecord): CredentialEntry 
     typeof vc.issuer === 'string'
       ? vc.issuer
       : (vc.issuer as { id?: string })?.id ?? '';
-  const issuer = formatIssuerUrl(rawIssuer, type);
+  const issuer = formatIssuerUrl(rawIssuer);
 
   // W3C VC 2.0 uses validFrom instead of issuanceDate
   const issuanceDate = vc.validFrom ?? new Date().toISOString();
