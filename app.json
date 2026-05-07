@@ -1,12 +1,15 @@
 {
   "expo": {
-    "name": "CDPI Wallet",
+    "name": "Colombia Wallet",
     "slug": "cdpi-wallet",
     "version": "0.1.0",
     "orientation": "portrait",
-    "scheme": "cdpiwallet",
+    "scheme": "colombiawallet",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
@@ -23,6 +26,7 @@
       "compileSdkVersion": 32,
       "targetSdkVersion": 32,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "intentFilters": [
@@ -65,7 +69,8 @@
         {
           "faceIDPermission": "Permite usar Face ID para proteger tu billetera."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},

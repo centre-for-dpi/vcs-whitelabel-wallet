@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Text } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { branding } from '../../branding.config';
 
 const Icon = ({ label, focused }: { label: string; focused: boolean }) => (
@@ -13,9 +13,9 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: branding.primaryColor,
         tabBarStyle: { borderTopColor: '#E5E7EB' },
-        headerStyle: { backgroundColor: '#fff' },
-        headerTintColor: '#111827',
-        headerTitleStyle: { fontWeight: '700' },
+        headerStyle: { backgroundColor: branding.headerBackgroundColor },
+        headerTintColor: branding.textColor,
+        headerTitleStyle: { fontWeight: '700', color: branding.textColor },
       }}
     >
       <Tabs.Screen
@@ -24,7 +24,18 @@ export default function TabsLayout() {
           title: '',
           tabBarLabel: 'Credenciales',
           tabBarIcon: ({ focused }) => <Icon label="🪪" focused={focused} />,
-          headerTitle: branding.appName,
+          headerTitle: () => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Image
+              source={require('../../assets/header-logo.png')}
+              style={{ height: 36, width: 36, tintColor: branding.headerLogoTintColor }}
+              resizeMode="contain"
+            />
+            <Text style={{ fontSize: 17, fontWeight: '700', color: branding.textColor }}>
+              {branding.appName}
+            </Text>
+          </View>
+        ),
         }}
       />
       <Tabs.Screen

@@ -17,48 +17,41 @@ export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
-      <View style={[styles.badge, { backgroundColor: branding.primaryColor }]}>
-        <Text style={styles.badgeText}>{entry.format.toUpperCase()}</Text>
+      <View style={[styles.accent, { backgroundColor: branding.primaryColor }]} />
+      <View style={styles.body}>
+        <Text style={styles.type}>{entry.type}</Text>
+        <Text style={styles.issuer} numberOfLines={1}>{entry.issuer}</Text>
+        <Text style={styles.date}>{date}</Text>
       </View>
-      <Text style={styles.type}>{entry.type}</Text>
-      <Text style={styles.issuer} numberOfLines={1}>
-        {entry.issuer}
-      </Text>
-      <Text style={styles.date}>{date}</Text>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
+    flexDirection: 'row',
+    backgroundColor: branding.secondaryColor,
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
   },
-  badge: {
-    alignSelf: 'flex-start',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginBottom: 8,
+  accent: {
+    width: 5,
   },
-  badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+  body: {
+    flex: 1,
+    padding: 16,
   },
   type: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   issuer: {
     fontSize: 13,

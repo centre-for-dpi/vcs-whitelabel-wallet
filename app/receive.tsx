@@ -9,22 +9,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SdJwtVcRecord, W3cCredentialRecord } from '@credo-ts/core';
+import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
-import { credentialBindingResolver } from '../src/agent/credentialBinding';
+import { normalizeOffer } from '../src/agent/oid4vci/normalizeOffer';
+import { requestOid4VciCredentials } from '../src/agent/oid4vci/requestCredentials';
+import { storeOid4VciCredential, formatConfigId } from '../src/agent/oid4vci/storeCredential';
 
 const PRE_AUTH_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
-
-const formatConfigId = (id: string): string => {
-  const clean = id.replace(/[-_](sdjwt|sd[-_]jwt|jwt|vc|mdoc)$/i, '');
-  return clean
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-};
 
 type Step = 'resolving' | 'confirm' | 'accepting' | 'done' | 'error';
 
@@ -40,14 +32,15 @@ export default function Receive() {
   const agentState = useAgentState();
   const [step, setStep] = useState<Step>('resolving');
   const [offerInfo, setOfferInfo] = useState<OfferInfo | null>(null);
-  const [resolvedOffer, setResolvedOffer] = useState<unknown>(null);
+  const [normalizedOffer, setNormalizedOffer] = useState<Record<string, unknown> | null>(null);
   const [txCode, setTxCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (!url || agentState.status !== 'ready') return;
     if (mode === 'didcomm') {
-      handleDIDCommOOB();
+      setErrorMsg('El flujo DIDComm no está disponible en esta versión. Usa OID4VCI para recibir credenciales.');
+      setStep('error');
     } else {
       resolveOID4VCI();
     }
@@ -57,84 +50,76 @@ export default function Receive() {
     if (agentState.status !== 'ready') return;
     const { agent } = agentState;
     try {
-      const offer = await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
-      setResolvedOffer(offer);
+      const rawOffer = await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
+      const offer = normalizeOffer(rawOffer);
+      setNormalizedOffer(offer);
 
-      const configs = offer.offeredCredentialConfigurations ?? {};
-      const credNames = Object.entries(configs).map(([configId, c]: [string, unknown]) => {
+      // Extract UI display info from the normalized offer
+      const offerMeta = offer.metadata as Record<string, unknown>;
+      const credentialIssuer = offerMeta?.credentialIssuer as Record<string, unknown> | undefined;
+      const issuerDisplay = credentialIssuer?.display as Array<Record<string, string>> | undefined;
+      const issuerName =
+        issuerDisplay?.[0]?.name ??
+        (credentialIssuer?.credential_issuer as string | undefined) ??
+        (rawOffer.credentialOfferPayload?.credential_issuer as string | undefined) ??
+        'Emisor desconocido';
+
+      const configs = (offer.offeredCredentialConfigurations as Record<string, unknown> | undefined) ?? {};
+      const credNames = Object.entries(configs).map(([configId, c]) => {
         const cfg = c as Record<string, unknown>;
-        // Check top-level display, then credential_metadata.display (CREDEBL), then format config ID
         const display = cfg.display as Array<Record<string, string>> | undefined;
         const metaDisplay = (cfg.credential_metadata as Record<string, unknown> | undefined)
           ?.display as Array<Record<string, string>> | undefined;
         return display?.[0]?.name ?? metaDisplay?.[0]?.name ?? formatConfigId(configId);
       });
 
-      // Extract human-readable issuer name from display metadata
-      const credentialIssuer = (offer.metadata as Record<string, unknown>)
-        ?.credentialIssuer as Record<string, unknown> | undefined;
-      const issuerDisplay = credentialIssuer?.display as Array<Record<string, string>> | undefined;
-      const issuerName =
-        issuerDisplay?.[0]?.name ??
-        (credentialIssuer?.credential_issuer as string | undefined) ??
-        offer.credentialOfferPayload?.credential_issuer ??
-        'Emisor desconocido';
-
-      const preAuthGrant = (offer.credentialOfferPayload?.grants as Record<string, unknown> | undefined)?.[PRE_AUTH_GRANT] as Record<string, unknown> | undefined;
+      const preAuthGrant = (rawOffer.credentialOfferPayload?.grants as Record<string, unknown> | undefined)?.[PRE_AUTH_GRANT] as Record<string, unknown> | undefined;
       const txCodeInfo = preAuthGrant?.tx_code as Record<string, unknown> | undefined;
-      const txCodeRequired = typeof txCodeInfo === 'object' && txCodeInfo !== null;
 
       setOfferInfo({
         issuer: issuerName,
         credentials: credNames,
-        txCodeRequired,
+        txCodeRequired: typeof txCodeInfo === 'object' && txCodeInfo !== null,
         txCodeDescription: txCodeInfo?.description as string | undefined,
       });
       setStep('confirm');
     } catch (e: unknown) {
+      console.error('[receive] resolveOID4VCI FAILED:', e);
       setErrorMsg(e instanceof Error ? e.message : 'Error al resolver la oferta.');
       setStep('error');
     }
   };
 
   const acceptOID4VCI = async () => {
-    if (agentState.status !== 'ready' || !resolvedOffer || !offerInfo) return;
+    if (agentState.status !== 'ready' || !normalizedOffer || !offerInfo) return;
     if (offerInfo.txCodeRequired && !txCode.trim()) return;
     const { agent } = agentState;
     setStep('accepting');
     try {
       const holder = agent.modules.openid4vc.holder;
-      const { accessToken, cNonce, dpop } = await holder.requestToken({
-        resolvedCredentialOffer: resolvedOffer,
+
+      const tokenResp = await holder.requestToken({
+        resolvedCredentialOffer: normalizedOffer as unknown as OpenId4VciResolvedCredentialOffer,
         ...(offerInfo.txCodeRequired ? { txCode: txCode.trim() } : {}),
       });
-      const { credentials } = await holder.requestCredentials({
-        resolvedCredentialOffer: resolvedOffer,
-        accessToken,
-        cNonce,
-        dpop,
-        credentialBindingResolver,
+      console.log('[receive] token ok, cNonce:', tokenResp.cNonce);
+
+      const results = await requestOid4VciCredentials(agent, normalizedOffer, {
+        accessToken: tokenResp.accessToken,
+        cNonce: tokenResp.cNonce,
+        dpop: tokenResp.dpop,
       });
-      for (const { record, credentialConfigurationId } of credentials) {
-        if (record instanceof SdJwtVcRecord) {
-          const stored = await agent.sdJwtVc.store({ record });
-          stored.setTag('issuerName', offerInfo.issuer);
-          stored.setTag('credentialName', formatConfigId(credentialConfigurationId));
-          await agent.sdJwtVc.update(stored);
-        } else if (record instanceof W3cCredentialRecord) {
-          await agent.w3cCredentials.store({ record });
-        }
+
+      for (const result of results) {
+        await storeOid4VciCredential(agent, result, { issuerName: offerInfo.issuer });
       }
+
       setStep('done');
     } catch (e: unknown) {
+      console.error('[receive] acceptOID4VCI FAILED:', e);
       setErrorMsg(e instanceof Error ? e.message : 'Error al aceptar la oferta.');
       setStep('error');
     }
-  };
-
-  const handleDIDCommOOB = async () => {
-    setErrorMsg('El flujo DIDComm no está disponible en esta versión. Usa OID4VCI para recibir credenciales.');
-    setStep('error');
   };
 
   return (
@@ -241,12 +226,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, padding: 24 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300 },
   statusText: { marginTop: 16, fontSize: 15, color: '#6B7280' },
-  card: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-  },
+  card: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 20, marginBottom: 16 },
   label: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
   value: { fontSize: 15, color: '#111827' },
   credRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 4 },

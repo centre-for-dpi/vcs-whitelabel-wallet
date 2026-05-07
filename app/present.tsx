@@ -9,8 +9,11 @@ import {
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
+import { normalizeAuthorizationRequestUrl } from '../src/agent/oid4vp/normalizeRequest';
+import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
 
 type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
 
@@ -29,24 +32,24 @@ export default function Present() {
   const agentState = useAgentState();
   const [step, setStep] = useState<Step>('resolving');
   const [requestInfo, setRequestInfo] = useState<RequestInfo | null>(null);
-  const [resolvedRequest, setResolvedRequest] = useState<unknown>(null);
+  const [resolvedRequest, setResolvedRequest] = useState<OpenId4VpResolvedAuthorizationRequest | null>(null);
   const [compactSdJwt, setCompactSdJwt] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (agentState.status !== 'ready') return;
-    if (url) {
-      resolveOID4VP();
-    } else if (id) {
-      loadCredentialQr();
-    }
+    if (url) resolveOID4VP();
+    else if (id) loadCredentialQr();
   }, [url, id, agentState.status]);
 
   const resolveOID4VP = async () => {
     if (agentState.status !== 'ready' || !url) return;
     const { agent } = agentState;
     try {
-      const resolved = await agent.modules.openid4vc.holder.resolveOpenId4VpAuthorizationRequest(url);
+      const resolveUrl = await normalizeAuthorizationRequestUrl(url);
+      console.log('[present] resolving:', resolveUrl.slice(0, 120));
+
+      const resolved = await agent.modules.openid4vc.holder.resolveOpenId4VpAuthorizationRequest(resolveUrl);
       setResolvedRequest(resolved);
 
       const r = resolved as Record<string, unknown>;
@@ -56,12 +59,13 @@ export default function Present() {
       const pex = r.presentationExchange as Record<string, unknown> | undefined;
       const definition = pex?.definition as Record<string, unknown> | undefined;
       const purpose = (definition?.purpose as string | undefined) ?? 'Verificación de credencial';
-      const inputDescriptors = definition?.input_descriptors as Array<Record<string, string>> | undefined;
-      const requestedTypes = inputDescriptors?.map((d) => d.name ?? d.id ?? 'Credencial') ?? [];
+      const descriptors = definition?.input_descriptors as Array<Record<string, string>> | undefined;
+      const requestedTypes = descriptors?.map((d) => d.name ?? d.id ?? 'Credencial') ?? [];
 
       setRequestInfo({ verifier, purpose, requestedTypes });
       setStep('confirm');
     } catch (e: unknown) {
+      console.error('[present] resolveOID4VP FAILED:', e);
       setErrorMsg(e instanceof Error ? e.message : 'Error al leer la solicitud.');
       setStep('error');
     }
@@ -87,40 +91,14 @@ export default function Present() {
     const { agent } = agentState;
     setStep('presenting');
     try {
-      const resolved = resolvedRequest as Record<string, unknown>;
+      console.log('[present] presenting credentials...');
+      await presentCredentials(agent, resolvedRequest);
 
-      // Auto-select credentials for Presentation Exchange (PEX)
-      let pexCredentials = undefined;
-      const pex = resolved.presentationExchange as Record<string, unknown> | undefined;
-      if (pex?.credentialsForRequest) {
-        pexCredentials = agent.modules.openid4vc.holder.selectCredentialsForPresentationExchangeRequest(
-          pex.credentialsForRequest as Parameters<
-            typeof agent.modules.openid4vc.holder.selectCredentialsForPresentationExchangeRequest
-          >[0]
-        );
-      }
-
-      // Auto-select credentials for DCQL
-      let dcqlCredentials = undefined;
-      const dcql = resolved.dcql as Record<string, unknown> | undefined;
-      if (dcql?.queryResult) {
-        dcqlCredentials = agent.modules.openid4vc.holder.selectCredentialsForDcqlRequest(
-          dcql.queryResult as Parameters<
-            typeof agent.modules.openid4vc.holder.selectCredentialsForDcqlRequest
-          >[0]
-        );
-      }
-
-      await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
-        authorizationRequestPayload: resolved.authorizationRequestPayload as Parameters<
-          typeof agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest
-        >[0]['authorizationRequestPayload'],
-        ...(pexCredentials ? { presentationExchange: { credentials: pexCredentials } } : {}),
-        ...(dcqlCredentials ? { dcql: { credentials: dcqlCredentials } } : {}),
-      });
-
+      console.log('[present] presentation successful');
       setStep('done');
     } catch (e: unknown) {
+      console.error('[present] handlePresent FAILED:', e);
+      if (e instanceof Error && e.stack) console.error('[present] stack:', e.stack.slice(0, 600));
       setErrorMsg(e instanceof Error ? e.message : 'Error al presentar la credencial.');
       setStep('error');
     }
@@ -185,12 +163,7 @@ export default function Present() {
 
           {compactSdJwt ? (
             <View style={styles.qrBox}>
-              <QRCode
-                value={compactSdJwt}
-                size={260}
-                color="#111827"
-                backgroundColor="#fff"
-              />
+              <QRCode value={compactSdJwt} size={260} color="#111827" backgroundColor="#fff" />
             </View>
           ) : (
             <View style={[styles.qrBox, styles.qrBoxEmpty]}>
@@ -232,9 +205,7 @@ export default function Present() {
         <View style={styles.center}>
           <Text style={styles.doneIcon}>✅</Text>
           <Text style={styles.doneTitle}>¡Presentación exitosa!</Text>
-          <Text style={styles.doneBody}>
-            El verificador recibió y validó tu credencial.
-          </Text>
+          <Text style={styles.doneBody}>El verificador recibió y validó tu credencial.</Text>
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
             onPress={() => {

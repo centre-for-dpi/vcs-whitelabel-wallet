@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -17,13 +16,13 @@ import {
   formatClaimValue,
   fromSdJwtRecord,
   fromW3cRecord,
+  fromW3cV2Record,
 } from '../../../src/utils/credential';
 
 export default function CredentialDetail() {
   const { id, format } = useLocalSearchParams<{ id: string; format: string }>();
   const agentState = useAgentState();
   const [entry, setEntry] = useState<CredentialEntry | null>(null);
-  const [disclosed, setDisclosed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (agentState.status !== 'ready' || !id) return;
@@ -34,10 +33,15 @@ export default function CredentialDetail() {
           const record = await agent.sdJwtVc.getById(id);
           const e = fromSdJwtRecord(record);
           setEntry(e);
-          setDisclosed(Object.fromEntries(e.selectiveFields.map((f) => [f, true])));
         } else {
-          const record = await agent.w3cCredentials.getCredentialRecordById(id);
-          setEntry(fromW3cRecord(record));
+          // Try W3C VC 2.0 first, fall back to W3C VC 1.x
+          try {
+            const record = await agent.w3cV2Credentials.getById(id);
+            setEntry(fromW3cV2Record(record));
+          } catch {
+            const record = await agent.w3cCredentials.getById(id);
+            setEntry(fromW3cRecord(record));
+          }
         }
       } catch {
         router.back();
@@ -52,7 +56,11 @@ export default function CredentialDetail() {
       if (format === 'sdjwt') {
         await agent.sdJwtVc.deleteById(entry.id);
       } else {
-        await agent.w3cCredentials.removeCredentialRecord(entry.id);
+        try {
+          await agent.w3cV2Credentials.deleteById(entry.id);
+        } catch {
+          await agent.w3cCredentials.deleteById(entry.id);
+        }
       }
       router.back();
     } catch { /* ignore */ }
@@ -93,24 +101,8 @@ export default function CredentialDetail() {
           const value = entry.claims[key];
           return (
             <View key={key} style={styles.claim}>
-              <View style={styles.claimLeft}>
-                <Text style={styles.claimKey}>{formatClaimKey(key)}</Text>
-                <Text style={styles.claimValue}>{formatClaimValue(value)}</Text>
-              </View>
-              {entry.format === 'sdjwt' && (
-                <View style={styles.claimRight}>
-                  <Text style={styles.disclosureLabel}>
-                    {disclosed[key] ? 'Revelar' : 'Ocultar'}
-                  </Text>
-                  <Switch
-                    value={disclosed[key] ?? true}
-                    onValueChange={(v) =>
-                      setDisclosed((prev) => ({ ...prev, [key]: v }))
-                    }
-                    trackColor={{ true: branding.primaryColor, false: '#D1D5DB' }}
-                  />
-                </View>
-              )}
+              <Text style={styles.claimKey}>{formatClaimKey(key)}</Text>
+              <Text style={styles.claimValue}>{formatClaimValue(value)}</Text>
             </View>
           );
         })}
@@ -163,18 +155,12 @@ const styles = StyleSheet.create({
   },
   sectionValue: { fontSize: 15, color: '#111827' },
   claim: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  claimLeft: { flex: 1, marginRight: 8 },
   claimKey: { fontSize: 12, color: '#6B7280', marginBottom: 2 },
   claimValue: { fontSize: 15, color: '#111827', fontWeight: '500' },
-  claimRight: { alignItems: 'center' },
-  disclosureLabel: { fontSize: 10, color: '#9CA3AF', marginBottom: 2 },
   actionBtn: {
     margin: 16,
     marginTop: 24,

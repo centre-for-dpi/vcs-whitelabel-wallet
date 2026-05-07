@@ -11,15 +11,18 @@ import {
 } from 'react-native';
 import { branding } from '../../../branding.config';
 import { useAgentState } from '../../../src/agent/context';
+import { useUser } from '../../../src/auth/UserContext';
 import { CredentialCard } from '../../../src/components/CredentialCard';
 import {
   CredentialEntry,
   fromSdJwtRecord,
   fromW3cRecord,
+  fromW3cV2Record,
 } from '../../../src/utils/credential';
 
 export default function CredentialList() {
   const agentState = useAgentState();
+  const { user } = useUser();
   const [entries, setEntries] = useState<CredentialEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,18 +31,27 @@ export default function CredentialList() {
     if (agentState.status !== 'ready') return;
     const { agent } = agentState;
     try {
-      const [sdJwtRecords, w3cRecords] = await Promise.all([
+      const [sdJwtRecords, w3cRecords, w3cV2Records] = await Promise.all([
         agent.sdJwtVc.getAll(),
         agent.w3cCredentials.getAll(),
+        agent.w3cV2Credentials.getAll(),
       ]);
-      const all: CredentialEntry[] = [
-        ...sdJwtRecords.map(fromSdJwtRecord),
-        ...w3cRecords.map(fromW3cRecord),
-      ].sort(
-        (a, b) => new Date(b.issuanceDate).getTime() - new Date(a.issuanceDate).getTime(),
-      );
+      console.log('[credentials] sdJwt:', sdJwtRecords.length, '| w3c:', w3cRecords.length, '| w3cV2:', w3cV2Records.length);
+      const all: CredentialEntry[] = [];
+      for (const r of sdJwtRecords) {
+        try { all.push(fromSdJwtRecord(r)); } catch (e) { console.error('[credentials] fromSdJwtRecord failed:', e); }
+      }
+      for (const r of w3cRecords) {
+        try { all.push(fromW3cRecord(r)); } catch (e) { console.error('[credentials] fromW3cRecord failed:', e); }
+      }
+      for (const r of w3cV2Records) {
+        try { all.push(fromW3cV2Record(r)); } catch (e) { console.error('[credentials] fromW3cV2Record failed:', e); }
+      }
+      all.sort((a, b) => new Date(b.issuanceDate).getTime() - new Date(a.issuanceDate).getTime());
+      console.log('[credentials] total entries after parse:', all.length);
       setEntries(all);
-    } catch {
+    } catch (e) {
+      console.error('[credentials] load failed:', e);
       setEntries([]);
     } finally {
       setLoading(false);
@@ -67,8 +79,15 @@ export default function CredentialList() {
     );
   }
 
+  const firstName = user?.given_name ?? user?.name?.split(' ')[0];
+
   return (
     <View style={styles.container}>
+      {firstName && (
+        <View style={styles.greeting}>
+          <Text style={styles.greetingText}>Hola, {firstName} 👋</Text>
+        </View>
+      )}
       {entries.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🪪</Text>
@@ -114,6 +133,16 @@ export default function CredentialList() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
+  greeting: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  greetingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
   list: { padding: 16 },
   empty: {

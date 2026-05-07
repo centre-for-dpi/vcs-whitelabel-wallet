@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -10,10 +11,11 @@ import {
   View,
 } from 'react-native';
 import { branding } from '../branding.config';
-import { setupAgent } from '../src/agent/setup';
+import { useInitializeAgent } from '../src/agent/context';
 import { savePin, saveWalletKey } from '../src/utils/storage';
 
 export default function Onboarding() {
+  const initializeAgent = useInitializeAgent();
   const [step, setStep] = useState<'welcome' | 'pin' | 'confirm'>('welcome');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -34,7 +36,7 @@ export default function Onboarding() {
       );
       await saveWalletKey(key);
       await savePin(pin);
-      await setupAgent(key); // warm up agent
+      await initializeAgent(key);
       router.replace('/(tabs)/credentials');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al configurar la billetera.');
@@ -46,11 +48,11 @@ export default function Onboarding() {
   if (step === 'welcome') {
     return (
       <View style={styles.container}>
-        <View style={styles.logoBox}>
-          <Text style={[styles.logoText, { color: branding.primaryColor }]}>
-            🪪
-          </Text>
-        </View>
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>{branding.appName}</Text>
         <Text style={styles.subtitle}>
           Tu billetera de credenciales verificables. Segura, privada, tuya.
@@ -115,16 +117,11 @@ const styles = StyleSheet.create({
     padding: 32,
     backgroundColor: '#fff',
   },
-  logoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#E8F0FE',
-    justifyContent: 'center',
-    alignItems: 'center',
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: 24,
   },
-  logoText: { fontSize: 36, fontWeight: '800' },
   title: {
     fontSize: 22,
     fontWeight: '700',

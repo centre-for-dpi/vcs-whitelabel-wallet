@@ -20,10 +20,12 @@ export const credentialBindingResolver = async ({
   const canUseDid = supportsAllDidMethods || supportedDidMethods?.includes('did:key');
   if (canUseDid) {
     const didsApi = agentContext.dependencyManager.resolve(DidsApi);
-    const result = await didsApi.create({ method: 'key' });
-    const vm = result.didDocument?.verificationMethod?.[0];
-    if (!vm?.id) throw new Error('No se pudo crear el did:key para la credencial.');
-    return { method: 'did', didUrls: [vm.id] };
+    const { keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm });
+    const result = await didsApi.create({ method: 'key', options: { keyId } });
+    const vmEntry = result.didState.didDocument?.verificationMethod?.[0];
+    const vmId = typeof vmEntry === 'string' ? vmEntry : vmEntry?.id;
+    if (!vmId) throw new Error(`No se pudo crear el did:key (state=${result.didState.state}).`);
+    return { method: 'did', didUrls: [vmId] };
   }
 
   throw new Error(
