@@ -18,6 +18,43 @@ import { storeOid4VciCredential, formatConfigId } from '../src/agent/oid4vci/sto
 
 const PRE_AUTH_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
 
+/**
+ * Manually resolves a credential offer when Credo-TS rejects it because
+ * the credential_issuer URL uses HTTP instead of HTTPS. Fetches the offer
+ * payload and well-known metadata directly, then builds the resolved offer
+ * structure that the rest of the pipeline expects.
+ */
+async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<string, unknown>> {
+  const offerResp = await fetch(offerUri);
+  if (!offerResp.ok) throw new Error(`Failed to fetch credential offer (${offerResp.status})`);
+  const offerPayload = await offerResp.json() as Record<string, unknown>;
+
+  const issuerUrl = (offerPayload.credential_issuer as string | undefined)?.replace(/\/$/, '');
+  if (!issuerUrl) throw new Error('credential_issuer missing from offer payload');
+
+  const wellKnownResp = await fetch(`${issuerUrl}/.well-known/openid-credential-issuer`);
+  if (!wellKnownResp.ok) throw new Error(`Failed to fetch issuer metadata (${wellKnownResp.status})`);
+  const issuerMeta = await wellKnownResp.json() as Record<string, unknown>;
+
+  const configsSupported = (issuerMeta.credential_configurations_supported ?? {}) as Record<string, unknown>;
+  const offeredIds = (offerPayload.credential_configuration_ids as string[] | undefined) ?? [];
+
+  const offeredConfigs: Record<string, unknown> = {};
+  for (const id of offeredIds) {
+    if (configsSupported[id]) offeredConfigs[id] = configsSupported[id];
+  }
+
+  return {
+    credentialOfferPayload: offerPayload,
+    metadata: {
+      credentialIssuer: issuerMeta,
+      originalDraftVersion: 'Draft15',
+      knownCredentialConfigurations: configsSupported,
+    },
+    offeredCredentialConfigurations: offeredConfigs,
+  };
+}
+
 type Step = 'resolving' | 'confirm' | 'accepting' | 'done' | 'error';
 
 type OfferInfo = {
@@ -50,7 +87,16 @@ export default function Receive() {
     if (agentState.status !== 'ready') return;
     const { agent } = agentState;
     try {
-      const rawOffer = await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
+      // Credo-TS rejects credential_issuer URLs that are not HTTPS.
+      // When the offer URI itself is HTTP, resolve manually and bypass Credo's parser.
+      const offerUriParam = url.slice(url.indexOf('credential_offer_uri=') + 'credential_offer_uri='.length).split('&')[0];
+      const offerUri = decodeURIComponent(offerUriParam);
+      const isHttpOffer = url.includes('credential_offer_uri=') && offerUri.startsWith('http://');
+
+      const rawOffer = isHttpOffer
+        ? await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer
+        : await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
+
       const offer = normalizeOffer(rawOffer);
       setNormalizedOffer(offer);
 
@@ -109,17 +155,46 @@ export default function Receive() {
     try {
       const holder = agent.modules.openid4vc.holder;
 
-      const tokenResp = await holder.requestToken({
-        resolvedCredentialOffer: normalizedOffer as unknown as OpenId4VciResolvedCredentialOffer,
-        ...(offerInfo.txCodeRequired ? { txCode: txCode.trim() } : {}),
-      });
-      console.log('[receive] token ok, cNonce:', tokenResp.cNonce);
+      // Credo's requestToken also fails for HTTP issuers. Detect by token endpoint scheme.
+      const issuerMeta = (normalizedOffer.metadata as Record<string, unknown>)
+        ?.credentialIssuer as Record<string, unknown> | undefined;
+      const tokenEndpoint = issuerMeta?.token_endpoint as string | undefined;
 
-      const results = await requestOid4VciCredentials(agent, normalizedOffer, {
-        accessToken: tokenResp.accessToken,
-        cNonce: tokenResp.cNonce,
-        dpop: tokenResp.dpop,
-      });
+      let accessToken: string;
+      let cNonce: string | undefined;
+      let dpop: unknown;
+
+      if (tokenEndpoint?.startsWith('http://')) {
+        const offerPayload = normalizedOffer.credentialOfferPayload as Record<string, unknown>;
+        const preAuth = (offerPayload?.grants as Record<string, unknown> | undefined)
+          ?.[PRE_AUTH_GRANT] as Record<string, unknown> | undefined;
+        const preAuthCode = preAuth?.['pre-authorized_code'] as string;
+
+        const body = new URLSearchParams({ grant_type: PRE_AUTH_GRANT, 'pre-authorized_code': preAuthCode });
+        if (offerInfo.txCodeRequired && txCode.trim()) body.set('tx_code', txCode.trim());
+
+        const resp = await fetch(tokenEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        });
+        if (!resp.ok) throw new Error(`Token request failed (${resp.status}): ${await resp.text()}`);
+        const data = await resp.json() as Record<string, unknown>;
+        accessToken = data.access_token as string;
+        cNonce = data.c_nonce as string | undefined;
+        console.log('[receive] token ok (manual HTTP), cNonce:', cNonce);
+      } else {
+        const tokenResp = await holder.requestToken({
+          resolvedCredentialOffer: normalizedOffer as unknown as OpenId4VciResolvedCredentialOffer,
+          ...(offerInfo.txCodeRequired ? { txCode: txCode.trim() } : {}),
+        });
+        accessToken = tokenResp.accessToken;
+        cNonce = tokenResp.cNonce;
+        dpop = tokenResp.dpop;
+        console.log('[receive] token ok, cNonce:', cNonce);
+      }
+
+      const results = await requestOid4VciCredentials(agent, normalizedOffer, { accessToken, cNonce, dpop });
 
       for (const result of results) {
         await storeOid4VciCredential(agent, result, { issuerName: offerInfo.issuer });
