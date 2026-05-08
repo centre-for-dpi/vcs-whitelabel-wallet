@@ -16,6 +16,9 @@ export const branding = {
   headerBackgroundColor: '#06095a',
   headerLogoTintColor: '#F9FAFB' as string | undefined,
   textColor: '#F9FAFB',
+  // Set to false to allow credential offers from HTTP (non-HTTPS) issuers.
+  // When true, Credo-TS enforces HTTPS and rejects HTTP issuer URLs.
+  requireHttps: false,
 } as const;
 
 // OIDC configuration — edit these values to enable SSO login.

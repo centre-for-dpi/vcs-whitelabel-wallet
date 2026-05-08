@@ -87,11 +87,12 @@ export default function Receive() {
     if (agentState.status !== 'ready') return;
     const { agent } = agentState;
     try {
-      // Credo-TS rejects credential_issuer URLs that are not HTTPS.
-      // When the offer URI itself is HTTP, resolve manually and bypass Credo's parser.
-      const offerUriParam = url.slice(url.indexOf('credential_offer_uri=') + 'credential_offer_uri='.length).split('&')[0];
+      // When requireHttps is false, bypass Credo's HTTPS-only validation for HTTP issuers.
+      const offerUriParam = url.includes('credential_offer_uri=')
+        ? url.slice(url.indexOf('credential_offer_uri=') + 'credential_offer_uri='.length).split('&')[0]
+        : '';
       const offerUri = decodeURIComponent(offerUriParam);
-      const isHttpOffer = url.includes('credential_offer_uri=') && offerUri.startsWith('http://');
+      const isHttpOffer = !branding.requireHttps && offerUri.startsWith('http://');
 
       const rawOffer = isHttpOffer
         ? await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer
@@ -155,7 +156,7 @@ export default function Receive() {
     try {
       const holder = agent.modules.openid4vc.holder;
 
-      // Credo's requestToken also fails for HTTP issuers. Detect by token endpoint scheme.
+      // When requireHttps is false, also bypass Credo's token request for HTTP endpoints.
       const issuerMeta = (normalizedOffer.metadata as Record<string, unknown>)
         ?.credentialIssuer as Record<string, unknown> | undefined;
       const tokenEndpoint = issuerMeta?.token_endpoint as string | undefined;
@@ -164,7 +165,7 @@ export default function Receive() {
       let cNonce: string | undefined;
       let dpop: unknown;
 
-      if (tokenEndpoint?.startsWith('http://')) {
+      if (!branding.requireHttps && tokenEndpoint?.startsWith('http://')) {
         const offerPayload = normalizedOffer.credentialOfferPayload as Record<string, unknown>;
         const preAuth = (offerPayload?.grants as Record<string, unknown> | undefined)
           ?.[PRE_AUTH_GRANT] as Record<string, unknown> | undefined;
