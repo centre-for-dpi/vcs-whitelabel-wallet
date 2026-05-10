@@ -26,7 +26,12 @@ const PRE_AUTH_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
  */
 async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<string, unknown>> {
   const offerResp = await fetch(offerUri);
-  if (!offerResp.ok) throw new Error(`Failed to fetch credential offer (${offerResp.status})`);
+  if (!offerResp.ok) {
+    if (offerResp.status === 404 || offerResp.status === 410) {
+      throw new Error('La oferta de credencial no existe o ya expiró. Solicita una nueva oferta al emisor.');
+    }
+    throw new Error(`Error al obtener la oferta de credencial (${offerResp.status})`);
+  }
   const offerPayload = await offerResp.json() as Record<string, unknown>;
 
   const issuerUrl = (offerPayload.credential_issuer as string | undefined)?.replace(/\/$/, '');
