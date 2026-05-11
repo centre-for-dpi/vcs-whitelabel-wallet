@@ -21,6 +21,7 @@ type RequestInfo = {
   verifier: string;
   purpose: string;
   requestedTypes: string[];
+  requestedFields: string[];
 };
 
 export default function Present() {
@@ -60,13 +61,67 @@ export default function Present() {
       const pex = r.presentationExchange as Record<string, unknown> | undefined;
       const dcql = r.dcql as Record<string, unknown> | undefined;
       console.log('[present] pex:', !!pex, '| dcql:', !!dcql);
-      const definition = pex?.definition as Record<string, unknown> | undefined;
-      const purpose = (definition?.purpose as string | undefined) ?? 'Verificación de credencial';
-      const descriptors = definition?.input_descriptors as Array<Record<string, string>> | undefined;
-      const requestedTypes = descriptors?.map((d) => d.name ?? d.id ?? 'Credencial') ?? [];
-      console.log('[present] verifier:', verifier, '| requestedTypes:', requestedTypes);
 
-      setRequestInfo({ verifier, purpose, requestedTypes });
+      let purpose = 'Verificación de credencial';
+      let requestedTypes: string[] = [];
+      let requestedFields: string[] = [];
+
+      if (pex) {
+        const definition = pex.definition as Record<string, unknown> | undefined;
+        purpose = (definition?.purpose as string | undefined) ?? purpose;
+        const descriptors = (definition?.input_descriptors as Array<Record<string, unknown>>) ?? [];
+        requestedTypes = descriptors.map((d) => (d.name ?? d.id ?? 'Credencial') as string);
+        for (const d of descriptors) {
+          const fields = ((d.constraints as Record<string, unknown> | undefined)
+            ?.fields as Array<Record<string, unknown>>) ?? [];
+          for (const f of fields) {
+            const paths = f.path as string[] | undefined;
+            const leaf = paths?.[0]?.split('.').pop()?.replace(/[[\]]/g, '');
+            if (leaf && leaf !== '$' && leaf !== 'vct' && leaf !== 'type') {
+              requestedFields.push(leaf);
+            }
+          }
+        }
+      } else if (dcql) {
+        // Credo embeds the original credential queries inside queryResult.credentials
+        const queryResult = dcql.queryResult as Record<string, unknown> | undefined;
+        const credQueries = (queryResult?.credentials as Array<Record<string, unknown>>) ?? [];
+
+        // For each DCQL credential query, prefer the matching wallet record's credentialName tag.
+        // The VCT URL ends in a UUID which is not human-readable, so we cross-reference
+        // the wallet to find a name. If no match by VCT, fall back to first wallet credential name.
+        const allSdJwt = await agent.sdJwtVc.getAll();
+        requestedTypes = credQueries.map((q) => {
+          const vcts = ((q.meta as Record<string, unknown> | undefined)
+            ?.vct_values as string[] | undefined) ?? [];
+          const matched = vcts.length > 0
+            ? allSdJwt.find((rec) => {
+                const vct = (rec.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
+                return vct && vcts.includes(vct);
+              })
+            : allSdJwt[0];
+          if (matched) {
+            return ((matched.getTags() as Record<string, unknown>).credentialName as string | undefined)
+              ?? 'Credencial';
+          }
+          const lastSeg = vcts[0]?.split('/').pop() ?? '';
+          return /^[0-9a-f-]{36}$/i.test(lastSeg) ? 'Credencial' : (lastSeg || (q.id as string) || 'Credencial');
+        });
+
+        for (const q of credQueries) {
+          const claims = (q.claims as Array<Record<string, unknown>>) ?? [];
+          for (const c of claims) {
+            const path = c.path as Array<string | number> | undefined;
+            const leaf = String(path?.[path.length - 1] ?? '');
+            if (leaf) requestedFields.push(leaf);
+          }
+        }
+      }
+
+      requestedFields = [...new Set(requestedFields)];
+      console.log('[present] verifier:', verifier, '| types:', requestedTypes, '| fields:', requestedFields);
+
+      setRequestInfo({ verifier, purpose, requestedTypes, requestedFields });
       setStep('confirm');
     } catch (e: unknown) {
       console.error('[present] resolveOID4VP FAILED:', e);
@@ -119,7 +174,7 @@ export default function Present() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      scrollEnabled={step === 'qr'}
+      scrollEnabled={step === 'qr' || step === 'confirm'}
     >
       {step === 'resolving' && (
         <View style={styles.center}>
@@ -141,6 +196,16 @@ export default function Present() {
                 {requestInfo.requestedTypes.map((t, i) => (
                   <View key={i} style={styles.credRow}>
                     <Text style={styles.credName}>🔍  {t}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+            {requestInfo.requestedFields.length > 0 && (
+              <>
+                <Text style={[styles.label, { marginTop: 16 }]}>Campos solicitados</Text>
+                {requestInfo.requestedFields.map((f, i) => (
+                  <View key={i} style={styles.credRow}>
+                    <Text style={styles.credName}>📋  {f}</Text>
                   </View>
                 ))}
               </>

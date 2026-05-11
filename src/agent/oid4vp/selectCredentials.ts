@@ -78,6 +78,28 @@ export async function selectCredentialsForRequest(
   }
 
   if (dcql?.queryResult) {
+    const qr = dcql.queryResult as Record<string, unknown>;
+    if (qr.can_be_satisfied === false) {
+      // Extract the expected VCT values for a meaningful error message
+      const credQueries = (qr.credentials as Array<Record<string, unknown>> | undefined) ?? [];
+      const expectedVcts = credQueries
+        .flatMap((q) => ((q.meta as Record<string, unknown> | undefined)?.vct_values as string[] | undefined) ?? [])
+        .map((v) => v.split('/').pop() ?? v);
+
+      const allSdJwt = await agent.sdJwtVc.getAll();
+      const walletVcts = allSdJwt
+        .map((r) => (r.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined)
+        .filter(Boolean)
+        .map((v) => v!.split('/').pop() ?? v!);
+
+      console.warn('[oid4vp/dcql] request not satisfiable — expected vct:', expectedVcts, '| wallet vct:', walletVcts);
+      throw new Error(
+        `No tienes una credencial que coincida con lo que solicita el verificador.\n` +
+        `Credencial requerida: ${expectedVcts.join(', ') || '(desconocida)'}\n` +
+        `Credenciales en tu billetera: ${walletVcts.join(', ') || '(ninguna)'}`,
+      );
+    }
+
     const dcqlCredentials = agent.modules.openid4vc.holder.selectCredentialsForDcqlRequest(
       dcql.queryResult,
     );
