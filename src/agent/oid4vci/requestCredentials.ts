@@ -121,12 +121,12 @@ export async function requestOid4VciCredentials(
 
     const displayName = (config.display as Array<Record<string, string>> | undefined)?.[0]?.name;
 
-    if (format === 'dc+sd-jwt') {
-      // ── dc+sd-jwt: always manual POST ──────────────────────────────────────────
+    if (format === 'dc+sd-jwt' && legacy) {
+      // ── dc+sd-jwt on legacy endpoints (/draft13, /draft14): manual POST ─────────
       const vct = config.vct as string;
       const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce);
 
-      console.log('[oid4vci] POST dc+sd-jwt — configId:', configId, 'vct:', vct);
+      console.log('[oid4vci] POST dc+sd-jwt (legacy) — configId:', configId, 'vct:', vct);
       const response = await fetch(credentialEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
@@ -182,8 +182,10 @@ export async function requestOid4VciCredentials(
     }
   }
 
-  // ── Conformant issuers: Credo standard path for remaining non-dc+sd-jwt formats ─
-  const credoConfigs = configs.filter(([, c]) => c.format !== 'dc+sd-jwt' && !legacy);
+  // ── Conformant issuers: Credo standard path for all non-legacy formats ──────────
+  // Includes dc+sd-jwt on non-legacy endpoints; Credo handles DPoP binding and
+  // proof format (credential_configuration_id + proofs) automatically.
+  const credoConfigs = configs.filter(([]) => !legacy);
   if (credoConfigs.length > 0) {
     const { credentials, deferredCredentials } = await holder.requestCredentials({
       resolvedCredentialOffer: offer as unknown as OpenId4VciResolvedCredentialOffer,

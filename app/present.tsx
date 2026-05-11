@@ -46,8 +46,9 @@ export default function Present() {
     if (agentState.status !== 'ready' || !url) return;
     const { agent } = agentState;
     try {
+      console.log('[present] url param:', url.slice(0, 200));
       const resolveUrl = await normalizeAuthorizationRequestUrl(url);
-      console.log('[present] resolving:', resolveUrl.slice(0, 120));
+      console.log('[present] normalized url:', resolveUrl.slice(0, 200));
 
       const resolved = await agent.modules.openid4vc.holder.resolveOpenId4VpAuthorizationRequest(resolveUrl);
       setResolvedRequest(resolved);
@@ -57,16 +58,26 @@ export default function Present() {
       const verifier = verifierInfo?.effectiveClientId ?? 'Verificador';
 
       const pex = r.presentationExchange as Record<string, unknown> | undefined;
+      const dcql = r.dcql as Record<string, unknown> | undefined;
+      console.log('[present] pex:', !!pex, '| dcql:', !!dcql);
       const definition = pex?.definition as Record<string, unknown> | undefined;
       const purpose = (definition?.purpose as string | undefined) ?? 'Verificación de credencial';
       const descriptors = definition?.input_descriptors as Array<Record<string, string>> | undefined;
       const requestedTypes = descriptors?.map((d) => d.name ?? d.id ?? 'Credencial') ?? [];
+      console.log('[present] verifier:', verifier, '| requestedTypes:', requestedTypes);
 
       setRequestInfo({ verifier, purpose, requestedTypes });
       setStep('confirm');
     } catch (e: unknown) {
       console.error('[present] resolveOID4VP FAILED:', e);
-      setErrorMsg(e instanceof Error ? e.message : 'Error al leer la solicitud.');
+      if (e instanceof Error && e.stack) console.error('[present] stack:', e.stack.slice(0, 600));
+      const msg = e instanceof Error ? e.message : String(e);
+      const isExpired = msg.includes('404') || msg.includes('invalid_request_uri');
+      setErrorMsg(
+        isExpired
+          ? 'La solicitud de verificación ha expirado o ya fue utilizada. Pide al verificador que genere un nuevo QR.'
+          : msg,
+      );
       setStep('error');
     }
   };

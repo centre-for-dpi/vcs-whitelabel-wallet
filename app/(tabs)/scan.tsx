@@ -32,6 +32,9 @@ export default function Scan() {
       case 'oid4vp':
         router.push({ pathname: '/present', params: { url: detected.url } });
         break;
+      case 'didcomm_oob':
+        setUrlError('Este QR usa el protocolo DIDComm, que no es compatible. Solicita al verificador un enlace OpenID4VP.');
+        return false;
       default:
         return false;
     }
@@ -42,7 +45,8 @@ export default function Scan() {
     if (cooldown.current) return;
     cooldown.current = true;
     setScanned(true);
-    navigate(data);
+    const ok = navigate(data);
+    if (!ok) setMode('manual');
     setTimeout(() => {
       setScanned(false);
       cooldown.current = false;

@@ -76,8 +76,14 @@ export async function storeOid4VciCredential(
     const stored = await agent.sdJwtVc.store({ record: record as SdJwtVcRecord });
     stored.setTag('issuerName', meta.issuerName);
     stored.setTag('credentialName', formatConfigId(configId));
+    const prettyClaims = stored.prettyClaims as Record<string, unknown> | undefined;
+    const vct = prettyClaims?.vct as string | undefined;
+    if (vct) stored.setTag('credentialVct', vct);
+    const holderKeyId = (stored as unknown as { credentialInstances?: Array<{ kmsKeyId?: string }> })
+      .credentialInstances?.[0]?.kmsKeyId;
+    if (holderKeyId) stored.setTag('holderKeyId', holderKeyId);
     await agent.sdJwtVc.update(stored);
-    console.log('[oid4vci] stored SdJwtVcRecord id:', stored.id);
+    console.log('[oid4vci] stored SdJwtVcRecord id:', stored.id, 'vct:', vct);
   } else if (recordType === 'W3cV2CredentialRecord' || record instanceof W3cV2CredentialRecord) {
     await agent.w3cV2Credentials.store({ record: record as W3cV2CredentialRecord });
     console.log('[oid4vci] stored W3cV2CredentialRecord');
