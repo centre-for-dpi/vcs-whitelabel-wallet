@@ -33,8 +33,8 @@ export default function Scan() {
         router.push({ pathname: '/present', params: { url: detected.url } });
         break;
       case 'didcomm_oob':
-        setUrlError('Este QR usa el protocolo DIDComm, que no es compatible. Solicita al verificador un enlace OpenID4VP.');
-        return false;
+        router.push({ pathname: '/receive-didcomm', params: { url: detected.url } });
+        break;
       default:
         return false;
     }

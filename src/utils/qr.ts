@@ -24,8 +24,14 @@ export const detectQrType = (raw: string): QrType => {
     return { kind: 'oid4vp', url };
   }
 
-  // DIDComm OOB invitation — encoded as ?d_m= or oob= query param
-  if (url.includes('?d_m=') || url.includes('?oob=') || url.startsWith('didcomm://')) {
+  // DIDComm OOB invitation — encoded as ?d_m= or oob= query param,
+  // or a short-redirect URL from the CREDEBL oob-redirector (/oob/default/<uuid>)
+  if (
+    url.includes('?d_m=') ||
+    url.includes('?oob=') ||
+    url.startsWith('didcomm://') ||
+    url.includes('/oob/default/')
+  ) {
     return { kind: 'didcomm_oob', url };
   }
 

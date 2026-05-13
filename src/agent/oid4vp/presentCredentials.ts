@@ -91,11 +91,33 @@ export async function presentCredentials(
           disclosedPayload: m.record.firstCredential.prettyClaims as Record<string, unknown>,
         }];
       }
-      await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
-        authorizationRequestPayload: resolved.authorizationRequestPayload,
-        presentationExchange: { credentials: built },
-      });
-      return;
+      try {
+        await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
+          authorizationRequestPayload: resolved.authorizationRequestPayload,
+          presentationExchange: { credentials: built },
+        });
+        return;
+      } catch (e) {
+        // Holder key was issued in a previous wallet session and is no longer in Askar.
+        // Fall back to manual posting; KB-JWT will be skipped gracefully if key is absent.
+        const isKeyMissing = e instanceof Error && (
+          e.name === 'KeyManagementKeyNotFoundError' ||
+          e.message.includes('not found in backend')
+        );
+        if (!isKeyMissing) throw e;
+        console.warn('[oid4vp] holder key missing from Askar, falling back to manual SD-JWT posting');
+        await postSdJwtPresentation(
+          matched.filter((m) => m.hasDisclosures),
+          descriptors,
+          definition!,
+          responseUri,
+          nonce,
+          state,
+          aud,
+          agent,
+        );
+        return;
+      }
     }
 
     // Non-conformant credentials: manual posting
