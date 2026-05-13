@@ -4,8 +4,10 @@ import { Image, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 
-const Icon = ({ label, focused }: { label: string; focused: boolean }) => (
-  <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.45 }}>{label}</Text>
+const Icon = ({ label, focused, size = 22 }: { label: string; focused: boolean; size?: number }) => (
+  <View style={{ overflow: 'visible', alignItems: 'center', justifyContent: 'center' }}>
+    <Text style={{ fontSize: size, opacity: focused ? 1 : 0.45 }}>{label}</Text>
+  </View>
 );
 
 export default function TabsLayout() {
@@ -26,7 +28,7 @@ export default function TabsLayout() {
         options={{
           title: '',
           tabBarLabel: t('tabs.credentials'),
-          tabBarIcon: ({ focused }) => <Icon label="🪪" focused={focused} />,
+          tabBarIcon: ({ focused }) => <Icon label="🪪      " focused={focused} />,
           headerTitle: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Image

@@ -19,7 +19,7 @@ export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
       <View style={[styles.accent, { backgroundColor: branding.primaryColor }]} />
       <View style={styles.body}>
-        <Text style={styles.type}>{entry.type}</Text>
+        <Text style={[styles.type, { color: branding.textColor }]}>{entry.type}</Text>
         <Text style={styles.issuer} numberOfLines={1}>{entry.issuer}</Text>
         <Text style={styles.date}>{date}</Text>
       </View>

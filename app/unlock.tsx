@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     padding: 32,
     backgroundColor: branding.loginBackgroundColor,
   },
-  logo: { width: 120, height: 120, marginBottom: 24 },
+  logo: { width: 280, height: 67, marginBottom: 32, resizeMode: 'contain' },
   title: { fontSize: 22, fontWeight: '700', color: branding.textColor, marginBottom: 24 },
   pinInput: {
     width: 180,

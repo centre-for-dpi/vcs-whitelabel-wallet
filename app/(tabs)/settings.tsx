@@ -51,7 +51,7 @@ export default function Settings() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('settings.section_wallet')}</Text>
         <Row label={t('settings.row_name')} value={branding.appName} />
-        <Row label={t('settings.row_agent')} value={agentState.status} />
+        {/* <Row label={t('settings.row_agent')} value={agentState.status} /> */}
       </View>
 
       <View style={styles.section}>
@@ -80,7 +80,7 @@ export default function Settings() {
         </View>
       </View>
 
-      <Text style={styles.footer}>cdpi-wallet • Powered by Credo 0.6.3</Text>
+      <Text style={styles.footer}>{branding.appName} • Powered by Credo 0.6.3</Text>
     </ScrollView>
   );
 }

@@ -8,14 +8,14 @@
  */
 
 export const branding = {
-  appName: 'ROBI Wallet',
-  primaryColor: '#db1a3d',
-  secondaryColor: '#ffffff',
-  backgroundColor: '#F9FAFB',
-  loginBackgroundColor: '#06095a',
-  headerBackgroundColor: '#06095a',
-  headerLogoTintColor: '#F9FAFB' as string | undefined,
-  textColor: '#F9FAFB',
+  appName: 'CDPI Wallet',
+  primaryColor: '#5454ee',           // CDPI purple — buttons, active tabs, highlights
+  secondaryColor: '#ffffff',         // CDPI dark navy — accents
+  backgroundColor: '#f9fafba5',
+  loginBackgroundColor: '#ffffff',   // white login screen (CDPI website style)
+  headerBackgroundColor: '#ffffff',  // white header (CDPI website style)
+  headerLogoTintColor: undefined as string | undefined,  // no tint — black logo on white header
+  textColor: '#2c2c77',              // CDPI dark navy for titles and header text
   // Set to false to allow credential offers from HTTP (non-HTTPS) issuers.
   // When true, Credo-TS enforces HTTPS and rejects HTTP issuer URLs.
   requireHttps: false,
