@@ -1,9 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { branding } from '../branding.config';
 
 export default function ReceiveDIDComm() {
+  const { t } = useTranslation();
   const { url } = useLocalSearchParams<{ url?: string }>();
 
   console.warn('[didcomm] DIDComm OOB not supported in Credo-TS 0.6.x — url:', url?.slice(0, 120));
@@ -12,17 +14,19 @@ export default function ReceiveDIDComm() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.center}>
         <Text style={styles.icon}>⚠️</Text>
-        <Text style={styles.title}>Credencial DIDComm</Text>
+        <Text style={styles.title}>{t('didcomm.title')}</Text>
         <Text style={styles.body}>
-          Este QR contiene una invitación DIDComm (protocolo AIP 2.0). Esta versión de la wallet
-          solo soporta credenciales OID4VCI (<Text style={styles.code}>openid-credential-offer://</Text>)
-          y presentaciones OID4VP (<Text style={styles.code}>openid4vp://</Text>).
+          {t('didcomm.body1')}
+          <Text style={styles.code}>{'openid-credential-offer://'}</Text>
+          {t('didcomm.body2')}
+          <Text style={styles.code}>{'openid4vp://'}</Text>
+          {t('didcomm.body3')}
         </Text>
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: branding.primaryColor }]}
           onPress={() => router.back()}
         >
-          <Text style={styles.btnText}>Volver</Text>
+          <Text style={styles.btnText}>{t('didcomm.back_btn')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

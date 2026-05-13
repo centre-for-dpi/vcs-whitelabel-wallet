@@ -10,11 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { branding } from '../branding.config';
 import { useInitializeAgent } from '../src/agent/context';
 import { savePin, saveWalletKey } from '../src/utils/storage';
 
 export default function Onboarding() {
+  const { t } = useTranslation();
   const initializeAgent = useInitializeAgent();
   const [step, setStep] = useState<'welcome' | 'pin' | 'confirm'>('welcome');
   const [pin, setPin] = useState('');
@@ -24,7 +26,7 @@ export default function Onboarding() {
 
   const handleConfirm = async () => {
     if (pin !== confirmPin) {
-      setError('Los PINs no coinciden.');
+      setError(t('onboarding.pin_mismatch'));
       return;
     }
     setError('');
@@ -39,7 +41,7 @@ export default function Onboarding() {
       await initializeAgent(key);
       router.replace('/(tabs)/credentials');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al configurar la billetera.');
+      setError(e instanceof Error ? e.message : t('onboarding.setup_error'));
     } finally {
       setLoading(false);
     }
@@ -54,14 +56,12 @@ export default function Onboarding() {
           resizeMode="contain"
         />
         <Text style={styles.title}>{branding.appName}</Text>
-        <Text style={styles.subtitle}>
-          Tu billetera de credenciales verificables. Segura, privada, tuya.
-        </Text>
+        <Text style={styles.subtitle}>{t('onboarding.subtitle')}</Text>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: branding.primaryColor }]}
           onPress={() => setStep('pin')}
         >
-          <Text style={styles.buttonText}>Configurar billetera</Text>
+          <Text style={styles.buttonText}>{t('onboarding.setup_btn')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -70,12 +70,10 @@ export default function Onboarding() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>
-        {step === 'pin' ? 'Elige un PIN de 6 dígitos' : 'Confirma tu PIN'}
+        {step === 'pin' ? t('onboarding.choose_pin') : t('onboarding.confirm_pin')}
       </Text>
       <Text style={styles.subtitle}>
-        {step === 'pin'
-          ? 'Este PIN protege el acceso a tu billetera.'
-          : 'Ingresa el PIN nuevamente para confirmar.'}
+        {step === 'pin' ? t('onboarding.pin_protect') : t('onboarding.pin_repeat')}
       </Text>
       <TextInput
         style={styles.pinInput}
@@ -101,7 +99,7 @@ export default function Onboarding() {
           onPress={step === 'pin' ? () => setStep('confirm') : handleConfirm}
         >
           <Text style={styles.buttonText}>
-            {step === 'pin' ? 'Siguiente' : 'Crear billetera'}
+            {step === 'pin' ? t('onboarding.next') : t('onboarding.create_wallet')}
           </Text>
         </TouchableOpacity>
       )}
@@ -117,25 +115,9 @@ const styles = StyleSheet.create({
     padding: 32,
     backgroundColor: '#fff',
   },
-  logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 22,
-  },
+  logo: { width: 120, height: 120, marginBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 12 },
+  subtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
   pinInput: {
     width: 180,
     height: 56,
@@ -148,14 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: '#111827',
   },
-  button: {
-    width: '100%',
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-  },
+  button: { width: '100%', height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   error: { color: '#DC2626', fontSize: 14, marginBottom: 8 },

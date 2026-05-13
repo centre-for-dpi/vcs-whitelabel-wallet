@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { branding } from '../../../branding.config';
 import { useAgentState } from '../../../src/agent/context';
 import { useUser } from '../../../src/auth/UserContext';
@@ -19,8 +20,10 @@ import {
   fromW3cRecord,
   fromW3cV2Record,
 } from '../../../src/utils/credential';
+import { getUserFirstName } from '../../../src/utils/storage';
 
 export default function CredentialList() {
+  const { t } = useTranslation();
   const agentState = useAgentState();
   const { user } = useUser();
   const [entries, setEntries] = useState<CredentialEntry[]>([]);
@@ -63,7 +66,7 @@ export default function CredentialList() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  if (agentState.status !== 'ready') {
+  if (agentState.status !== 'ready' || loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={branding.primaryColor} />
@@ -71,35 +74,25 @@ export default function CredentialList() {
     );
   }
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={branding.primaryColor} />
-      </View>
-    );
-  }
-
-  const firstName = user?.given_name ?? user?.name?.split(' ')[0];
+  const firstName = user ? getUserFirstName(user) : undefined;
 
   return (
     <View style={styles.container}>
       {firstName && (
         <View style={styles.greeting}>
-          <Text style={styles.greetingText}>Hola, {firstName} 👋</Text>
+          <Text style={styles.greetingText}>{t('credentials.greeting', { name: firstName })}</Text>
         </View>
       )}
       {entries.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🪪</Text>
-          <Text style={styles.emptyTitle}>Sin credenciales</Text>
-          <Text style={styles.emptyBody}>
-            Escanea el QR de tu emisor o pega un enlace OpenID para recibir tu primera credencial.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('credentials.empty_title')}</Text>
+          <Text style={styles.emptyBody}>{t('credentials.empty_body')}</Text>
           <TouchableOpacity
             style={[styles.scanBtn, { backgroundColor: branding.primaryColor }]}
             onPress={() => router.push('/(tabs)/scan')}
           >
-            <Text style={styles.scanBtnText}>Ir a escanear</Text>
+            <Text style={styles.scanBtnText}>{t('credentials.scan_btn')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -133,37 +126,14 @@ export default function CredentialList() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  greeting: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 4,
-  },
-  greetingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-  },
+  greeting: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
+  greetingText: { fontSize: 16, fontWeight: '600', color: '#374151' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
   list: { padding: 16 },
-  empty: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 8 },
-  emptyBody: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  scanBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
+  emptyBody: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  scanBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
   scanBtnText: { color: '#fff', fontWeight: '600' },
 });

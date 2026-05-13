@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Image, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 
 const Icon = ({ label, focused }: { label: string; focused: boolean }) => (
@@ -8,6 +9,8 @@ const Icon = ({ label, focused }: { label: string; focused: boolean }) => (
 );
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -22,39 +25,38 @@ export default function TabsLayout() {
         name="credentials"
         options={{
           title: '',
-          tabBarLabel: 'Credenciales',
+          tabBarLabel: t('tabs.credentials'),
           tabBarIcon: ({ focused }) => <Icon label="🪪" focused={focused} />,
           headerTitle: () => (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Image
-              source={require('../../assets/header-logo.png')}
-              style={{ height: 36, width: 36, tintColor: branding.headerLogoTintColor }}
-              resizeMode="contain"
-            />
-            <Text style={{ fontSize: 17, fontWeight: '700', color: branding.textColor }}>
-              {branding.appName}
-            </Text>
-          </View>
-        ),
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Image
+                source={require('../../assets/header-logo.png')}
+                style={{ height: 36, width: 36, tintColor: branding.headerLogoTintColor }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontSize: 17, fontWeight: '700', color: branding.textColor }}>
+                {branding.appName}
+              </Text>
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="scan"
         options={{
-          title: 'Escanear',
-          tabBarLabel: 'Escanear',
+          title: t('tabs.scan'),
+          tabBarLabel: t('tabs.scan'),
           tabBarIcon: ({ focused }) => <Icon label="📷" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Ajustes',
-          tabBarLabel: 'Ajustes',
+          title: t('tabs.settings'),
+          tabBarLabel: t('tabs.settings'),
           tabBarIcon: ({ focused }) => <Icon label="⚙️" focused={focused} />,
         }}
       />
     </Tabs>
-    
   );
 }

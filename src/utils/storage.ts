@@ -13,6 +13,26 @@ export type OidcUser = {
   email?: string;
 };
 
+/**
+ * Returns the best available full display name for a user.
+ * Priority: given_name + family_name > given_name > name > email > undefined
+ * Avoids using `name` as the primary source because many OIDC servers
+ * populate it with a username or document ID instead of a human name.
+ */
+export function getUserDisplayName(user: OidcUser): string | undefined {
+  if (user.given_name && user.family_name) return `${user.given_name} ${user.family_name}`;
+  if (user.given_name) return user.given_name;
+  if (user.name) return user.name;
+  return user.email;
+}
+
+/** Returns the best available first name for greetings. */
+export function getUserFirstName(user: OidcUser): string | undefined {
+  if (user.given_name) return user.given_name;
+  if (user.name) return user.name.split(' ')[0];
+  return user.email?.split('@')[0];
+}
+
 export const isSetupDone = async (): Promise<boolean> => {
   const val = await SecureStore.getItemAsync(KEY_SETUP_DONE);
   return val === 'true';

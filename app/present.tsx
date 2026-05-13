@@ -9,9 +9,11 @@ import {
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useTranslation } from 'react-i18next';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
+import i18n from '../src/i18n';
 import { normalizeAuthorizationRequestUrl } from '../src/agent/oid4vp/normalizeRequest';
 import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
 
@@ -25,11 +27,8 @@ type RequestInfo = {
 };
 
 export default function Present() {
-  const { url, id, format } = useLocalSearchParams<{
-    url?: string;
-    id?: string;
-    format?: string;
-  }>();
+  const { t } = useTranslation();
+  const { url, id, format } = useLocalSearchParams<{ url?: string; id?: string; format?: string }>();
   const agentState = useAgentState();
   const [step, setStep] = useState<Step>('resolving');
   const [requestInfo, setRequestInfo] = useState<RequestInfo | null>(null);
@@ -41,6 +40,7 @@ export default function Present() {
     if (agentState.status !== 'ready') return;
     if (url) resolveOID4VP();
     else if (id) loadCredentialQr();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, id, agentState.status]);
 
   const resolveOID4VP = async () => {
@@ -56,13 +56,13 @@ export default function Present() {
 
       const r = resolved as Record<string, unknown>;
       const verifierInfo = r.verifier as Record<string, string> | undefined;
-      const verifier = verifierInfo?.effectiveClientId ?? 'Verificador';
+      const verifier = verifierInfo?.effectiveClientId ?? i18n.t('present.verifier_fallback');
 
       const pex = r.presentationExchange as Record<string, unknown> | undefined;
       const dcql = r.dcql as Record<string, unknown> | undefined;
       console.log('[present] pex:', !!pex, '| dcql:', !!dcql);
 
-      let purpose = 'Verificación de credencial';
+      let purpose = i18n.t('present.default_purpose');
       let requestedTypes: string[] = [];
       let requestedFields: string[] = [];
 
@@ -70,7 +70,7 @@ export default function Present() {
         const definition = pex.definition as Record<string, unknown> | undefined;
         purpose = (definition?.purpose as string | undefined) ?? purpose;
         const descriptors = (definition?.input_descriptors as Array<Record<string, unknown>>) ?? [];
-        requestedTypes = descriptors.map((d) => (d.name ?? d.id ?? 'Credencial') as string);
+        requestedTypes = descriptors.map((d) => (d.name ?? d.id ?? i18n.t('present.credential_fallback')) as string);
         for (const d of descriptors) {
           const fields = ((d.constraints as Record<string, unknown> | undefined)
             ?.fields as Array<Record<string, unknown>>) ?? [];
@@ -83,13 +83,9 @@ export default function Present() {
           }
         }
       } else if (dcql) {
-        // Credo embeds the original credential queries inside queryResult.credentials
         const queryResult = dcql.queryResult as Record<string, unknown> | undefined;
         const credQueries = (queryResult?.credentials as Array<Record<string, unknown>>) ?? [];
 
-        // For each DCQL credential query, prefer the matching wallet record's credentialName tag.
-        // The VCT URL ends in a UUID which is not human-readable, so we cross-reference
-        // the wallet to find a name. If no match by VCT, fall back to first wallet credential name.
         const allSdJwt = await agent.sdJwtVc.getAll();
         requestedTypes = credQueries.map((q) => {
           const vcts = ((q.meta as Record<string, unknown> | undefined)
@@ -102,10 +98,10 @@ export default function Present() {
             : allSdJwt[0];
           if (matched) {
             return ((matched.getTags() as Record<string, unknown>).credentialName as string | undefined)
-              ?? 'Credencial';
+              ?? i18n.t('present.credential_fallback');
           }
           const lastSeg = vcts[0]?.split('/').pop() ?? '';
-          return /^[0-9a-f-]{36}$/i.test(lastSeg) ? 'Credencial' : (lastSeg || (q.id as string) || 'Credencial');
+          return /^[0-9a-f-]{36}$/i.test(lastSeg) ? i18n.t('present.credential_fallback') : (lastSeg || (q.id as string) || i18n.t('present.credential_fallback'));
         });
 
         for (const q of credQueries) {
@@ -128,11 +124,7 @@ export default function Present() {
       if (e instanceof Error && e.stack) console.error('[present] stack:', e.stack.slice(0, 600));
       const msg = e instanceof Error ? e.message : String(e);
       const isExpired = msg.includes('404') || msg.includes('invalid_request_uri');
-      setErrorMsg(
-        isExpired
-          ? 'La solicitud de verificación ha expirado o ya fue utilizada. Pide al verificador que genere un nuevo QR.'
-          : msg,
-      );
+      setErrorMsg(isExpired ? i18n.t('present.expired_error') : msg);
       setStep('error');
     }
   };
@@ -147,7 +139,7 @@ export default function Present() {
       }
       setStep('qr');
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : 'Error al cargar la credencial.');
+      setErrorMsg(e instanceof Error ? e.message : t('present.load_error'));
       setStep('error');
     }
   };
@@ -159,13 +151,12 @@ export default function Present() {
     try {
       console.log('[present] presenting credentials...');
       await presentCredentials(agent, resolvedRequest);
-
       console.log('[present] presentation successful');
       setStep('done');
     } catch (e: unknown) {
       console.error('[present] handlePresent FAILED:', e);
       if (e instanceof Error && e.stack) console.error('[present] stack:', e.stack.slice(0, 600));
-      setErrorMsg(e instanceof Error ? e.message : 'Error al presentar la credencial.');
+      setErrorMsg(e instanceof Error ? e.message : t('present.present_error'));
       setStep('error');
     }
   };
@@ -179,30 +170,30 @@ export default function Present() {
       {step === 'resolving' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={branding.primaryColor} />
-          <Text style={styles.statusText}>Leyendo solicitud...</Text>
+          <Text style={styles.statusText}>{t('present.loading')}</Text>
         </View>
       )}
 
       {step === 'confirm' && requestInfo && (
         <>
           <View style={styles.card}>
-            <Text style={styles.label}>Verificador</Text>
+            <Text style={styles.label}>{t('present.label_verifier')}</Text>
             <Text style={styles.value}>{requestInfo.verifier}</Text>
-            <Text style={[styles.label, { marginTop: 16 }]}>Propósito</Text>
+            <Text style={[styles.label, { marginTop: 16 }]}>{t('present.label_purpose')}</Text>
             <Text style={styles.value}>{requestInfo.purpose}</Text>
             {requestInfo.requestedTypes.length > 0 && (
               <>
-                <Text style={[styles.label, { marginTop: 16 }]}>Credenciales solicitadas</Text>
-                {requestInfo.requestedTypes.map((t, i) => (
+                <Text style={[styles.label, { marginTop: 16 }]}>{t('present.label_creds')}</Text>
+                {requestInfo.requestedTypes.map((type, i) => (
                   <View key={i} style={styles.credRow}>
-                    <Text style={styles.credName}>🔍  {t}</Text>
+                    <Text style={styles.credName}>🔍  {type}</Text>
                   </View>
                 ))}
               </>
             )}
             {requestInfo.requestedFields.length > 0 && (
               <>
-                <Text style={[styles.label, { marginTop: 16 }]}>Campos solicitados</Text>
+                <Text style={[styles.label, { marginTop: 16 }]}>{t('present.label_fields')}</Text>
                 {requestInfo.requestedFields.map((f, i) => (
                   <View key={i} style={styles.credRow}>
                     <Text style={styles.credName}>📋  {f}</Text>
@@ -213,29 +204,25 @@ export default function Present() {
           </View>
 
           <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              Se seleccionarán automáticamente las credenciales que satisfagan la solicitud.
-            </Text>
+            <Text style={styles.noticeText}>{t('present.auto_select')}</Text>
           </View>
 
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
             onPress={handlePresent}
           >
-            <Text style={styles.btnText}>Presentar credencial</Text>
+            <Text style={styles.btnText}>{t('present.present_btn')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-            <Text style={styles.cancelText}>Cancelar</Text>
+            <Text style={styles.cancelText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </>
       )}
 
       {step === 'qr' && (
         <View style={styles.qrContainer}>
-          <Text style={styles.qrTitle}>Presentación presencial</Text>
-          <Text style={styles.qrSubtitle}>
-            Muestra este QR al verificador para que escanee tu credencial directamente.
-          </Text>
+          <Text style={styles.qrTitle}>{t('present.qr_title')}</Text>
+          <Text style={styles.qrSubtitle}>{t('present.qr_subtitle')}</Text>
 
           {compactSdJwt ? (
             <View style={styles.qrBox}>
@@ -243,9 +230,7 @@ export default function Present() {
             </View>
           ) : (
             <View style={[styles.qrBox, styles.qrBoxEmpty]}>
-              <Text style={styles.qrBoxEmptyText}>
-                Este tipo de credencial no admite presentación QR directa.
-              </Text>
+              <Text style={styles.qrBoxEmptyText}>{t('present.qr_not_supported')}</Text>
             </View>
           )}
 
@@ -257,15 +242,12 @@ export default function Present() {
 
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
-            onPress={() => {
-              router.back();
-              router.replace({ pathname: '/(tabs)/scan', params: { context: 'present' } });
-            }}
+            onPress={() => { router.back(); router.replace({ pathname: '/(tabs)/scan', params: { context: 'present' } }); }}
           >
-            <Text style={styles.btnText}>Escanear QR del verificador</Text>
+            <Text style={styles.btnText}>{t('present.scan_verifier_btn')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-            <Text style={styles.cancelText}>Volver</Text>
+            <Text style={styles.cancelText}>{t('present.back_btn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -273,23 +255,20 @@ export default function Present() {
       {step === 'presenting' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={branding.primaryColor} />
-          <Text style={styles.statusText}>Enviando presentación al verificador...</Text>
+          <Text style={styles.statusText}>{t('present.sending')}</Text>
         </View>
       )}
 
       {step === 'done' && (
         <View style={styles.center}>
           <Text style={styles.doneIcon}>✅</Text>
-          <Text style={styles.doneTitle}>¡Presentación exitosa!</Text>
-          <Text style={styles.doneBody}>El verificador recibió y validó tu credencial.</Text>
+          <Text style={styles.doneTitle}>{t('present.success_title')}</Text>
+          <Text style={styles.doneBody}>{t('present.success_body')}</Text>
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
-            onPress={() => {
-              router.dismiss();
-              router.replace('/(tabs)/credentials');
-            }}
+            onPress={() => { router.dismiss(); router.replace('/(tabs)/credentials'); }}
           >
-            <Text style={styles.btnText}>Volver a mis credenciales</Text>
+            <Text style={styles.btnText}>{t('present.return_btn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -297,13 +276,13 @@ export default function Present() {
       {step === 'error' && (
         <View style={styles.center}>
           <Text style={styles.doneIcon}>❌</Text>
-          <Text style={styles.doneTitle}>Error</Text>
+          <Text style={styles.doneTitle}>{t('common.error')}</Text>
           <Text style={styles.errorBody}>{errorMsg}</Text>
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: '#DC2626' }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.btnText}>Volver</Text>
+            <Text style={styles.btnText}>{t('present.back_btn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -334,17 +313,7 @@ const styles = StyleSheet.create({
   qrContainer: { flex: 1, alignItems: 'center', paddingTop: 8 },
   qrTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 8, textAlign: 'center' },
   qrSubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 28 },
-  qrBox: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
+  qrBox: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 },
   qrBoxEmpty: { width: 300, height: 160, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
   qrBoxEmptyText: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
   divider: { flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20 },

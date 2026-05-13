@@ -9,26 +9,22 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
+import i18n from '../src/i18n';
 import { normalizeOffer } from '../src/agent/oid4vci/normalizeOffer';
 import { requestOid4VciCredentials } from '../src/agent/oid4vci/requestCredentials';
 import { storeOid4VciCredential, formatConfigId } from '../src/agent/oid4vci/storeCredential';
 
 const PRE_AUTH_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
 
-/**
- * Manually resolves a credential offer when Credo-TS rejects it because
- * the credential_issuer URL uses HTTP instead of HTTPS. Fetches the offer
- * payload and well-known metadata directly, then builds the resolved offer
- * structure that the rest of the pipeline expects.
- */
 async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<string, unknown>> {
   const offerResp = await fetch(offerUri);
   if (!offerResp.ok) {
     if (offerResp.status === 404 || offerResp.status === 410) {
-      throw new Error('La oferta de credencial no existe o ya expiró. Solicita una nueva oferta al emisor.');
+      throw new Error(i18n.t('receive.offer_expired'));
     }
     throw new Error(`Error al obtener la oferta de credencial (${offerResp.status})`);
   }
@@ -70,6 +66,7 @@ type OfferInfo = {
 };
 
 export default function Receive() {
+  const { t } = useTranslation();
   const { url, mode } = useLocalSearchParams<{ url: string; mode?: string }>();
   const agentState = useAgentState();
   const [step, setStep] = useState<Step>('resolving');
@@ -81,18 +78,18 @@ export default function Receive() {
   useEffect(() => {
     if (!url || agentState.status !== 'ready') return;
     if (mode === 'didcomm') {
-      setErrorMsg('El flujo DIDComm no está disponible en esta versión. Usa OID4VCI para recibir credenciales.');
+      setErrorMsg(t('receive.didcomm_unsupported'));
       setStep('error');
     } else {
       resolveOID4VCI();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, agentState.status]);
 
   const resolveOID4VCI = async () => {
     if (agentState.status !== 'ready') return;
     const { agent } = agentState;
     try {
-      // When requireHttps is false, bypass Credo's HTTPS-only validation for HTTP issuers.
       const offerUriParam = url.includes('credential_offer_uri=')
         ? url.slice(url.indexOf('credential_offer_uri=') + 'credential_offer_uri='.length).split('&')[0]
         : '';
@@ -106,15 +103,12 @@ export default function Receive() {
       const offer = normalizeOffer(rawOffer);
       setNormalizedOffer(offer);
 
-      // Extract UI display info from the normalized offer
       const offerMeta = offer.metadata as Record<string, unknown>;
       const credentialIssuer = offerMeta?.credentialIssuer as Record<string, unknown> | undefined;
       const issuerDisplay = credentialIssuer?.display as Array<Record<string, string>> | undefined;
 
       const configs = (offer.offeredCredentialConfigurations as Record<string, unknown> | undefined) ?? {};
 
-      // Try to extract issuer from the first credential config's description.
-      // Convention: "Credential description · Issued by Issuer Name"
       const firstConfigDesc = (Object.values(configs)[0] as Record<string, unknown> | undefined);
       const firstDisplayDesc = (firstConfigDesc?.display as Array<Record<string, string>> | undefined)?.[0]?.description;
       const issuerFromDesc = firstDisplayDesc?.includes(' · ')
@@ -126,7 +120,7 @@ export default function Receive() {
         issuerFromDesc ??
         (credentialIssuer?.credential_issuer as string | undefined) ??
         (rawOffer.credentialOfferPayload?.credential_issuer as string | undefined) ??
-        'Emisor desconocido';
+        t('receive.unknown_issuer');
 
       const credNames = Object.entries(configs).map(([configId, c]) => {
         const cfg = c as Record<string, unknown>;
@@ -148,7 +142,7 @@ export default function Receive() {
       setStep('confirm');
     } catch (e: unknown) {
       console.error('[receive] resolveOID4VCI FAILED:', e);
-      setErrorMsg(e instanceof Error ? e.message : 'Error al resolver la oferta.');
+      setErrorMsg(e instanceof Error ? e.message : t('receive.resolve_error'));
       setStep('error');
     }
   };
@@ -161,7 +155,6 @@ export default function Receive() {
     try {
       const holder = agent.modules.openid4vc.holder;
 
-      // When requireHttps is false, also bypass Credo's token request for HTTP endpoints.
       const issuerMeta = (normalizedOffer.metadata as Record<string, unknown>)
         ?.credentialIssuer as Record<string, unknown> | undefined;
       const tokenEndpoint = issuerMeta?.token_endpoint as string | undefined;
@@ -209,30 +202,26 @@ export default function Receive() {
       setStep('done');
     } catch (e: unknown) {
       console.error('[receive] acceptOID4VCI FAILED:', e);
-      setErrorMsg(e instanceof Error ? e.message : 'Error al aceptar la oferta.');
+      setErrorMsg(e instanceof Error ? e.message : t('receive.accept_error'));
       setStep('error');
     }
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      scrollEnabled={false}
-    >
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} scrollEnabled={false}>
       {step === 'resolving' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={branding.primaryColor} />
-          <Text style={styles.statusText}>Leyendo oferta de credencial...</Text>
+          <Text style={styles.statusText}>{t('receive.loading')}</Text>
         </View>
       )}
 
       {step === 'confirm' && offerInfo && (
         <>
           <View style={styles.card}>
-            <Text style={styles.label}>Emisor</Text>
+            <Text style={styles.label}>{t('receive.label_issuer')}</Text>
             <Text style={styles.value}>{offerInfo.issuer}</Text>
-            <Text style={[styles.label, { marginTop: 16 }]}>Credenciales ofrecidas</Text>
+            <Text style={[styles.label, { marginTop: 16 }]}>{t('receive.label_offered')}</Text>
             {offerInfo.credentials.map((name, i) => (
               <View key={i} style={styles.credRow}>
                 <Text style={styles.credName}>🪪  {name}</Text>
@@ -243,13 +232,13 @@ export default function Receive() {
           {offerInfo.txCodeRequired && (
             <View style={styles.txCodeBox}>
               <Text style={styles.txCodeLabel}>
-                {offerInfo.txCodeDescription ?? 'El emisor requiere un código de transacción'}
+                {offerInfo.txCodeDescription ?? t('receive.tx_code_default')}
               </Text>
               <TextInput
                 style={styles.txCodeInput}
                 value={txCode}
                 onChangeText={setTxCode}
-                placeholder="Código enviado por el emisor"
+                placeholder={t('receive.tx_code_placeholder')}
                 placeholderTextColor="#9CA3AF"
                 keyboardType="default"
                 autoCapitalize="none"
@@ -267,10 +256,10 @@ export default function Receive() {
             disabled={offerInfo.txCodeRequired && !txCode.trim()}
             onPress={acceptOID4VCI}
           >
-            <Text style={styles.btnText}>Aceptar y guardar</Text>
+            <Text style={styles.btnText}>{t('receive.accept_btn')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-            <Text style={styles.cancelText}>Cancelar</Text>
+            <Text style={styles.cancelText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </>
       )}
@@ -278,23 +267,20 @@ export default function Receive() {
       {step === 'accepting' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={branding.primaryColor} />
-          <Text style={styles.statusText}>Recibiendo credencial...</Text>
+          <Text style={styles.statusText}>{t('receive.accepting')}</Text>
         </View>
       )}
 
       {step === 'done' && (
         <View style={styles.center}>
           <Text style={styles.doneIcon}>✅</Text>
-          <Text style={styles.doneTitle}>¡Credencial recibida!</Text>
-          <Text style={styles.doneBody}>La credencial fue guardada en tu billetera.</Text>
+          <Text style={styles.doneTitle}>{t('receive.success_title')}</Text>
+          <Text style={styles.doneBody}>{t('receive.success_body')}</Text>
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
-            onPress={() => {
-              router.dismiss();
-              router.replace('/(tabs)/credentials');
-            }}
+            onPress={() => { router.dismiss(); router.replace('/(tabs)/credentials'); }}
           >
-            <Text style={styles.btnText}>Ver mis credenciales</Text>
+            <Text style={styles.btnText}>{t('receive.view_btn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -302,10 +288,10 @@ export default function Receive() {
       {step === 'error' && (
         <View style={styles.center}>
           <Text style={styles.doneIcon}>❌</Text>
-          <Text style={styles.doneTitle}>Error</Text>
+          <Text style={styles.doneTitle}>{t('common.error')}</Text>
           <Text style={styles.errorBody}>{errorMsg}</Text>
           <TouchableOpacity style={[styles.btn, { backgroundColor: '#DC2626' }]} onPress={() => router.back()}>
-            <Text style={styles.btnText}>Volver</Text>
+            <Text style={styles.btnText}>{t('receive.back_btn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -323,24 +309,9 @@ const styles = StyleSheet.create({
   value: { fontSize: 15, color: '#111827' },
   credRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 4 },
   credName: { fontSize: 15, color: '#111827' },
-  txCodeBox: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
+  txCodeBox: { backgroundColor: '#FFFBEB', borderRadius: 10, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FDE68A' },
   txCodeLabel: { fontSize: 13, color: '#92400E', marginBottom: 10, lineHeight: 18 },
-  txCodeInput: {
-    borderWidth: 1.5,
-    borderColor: '#D97706',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#111827',
-    backgroundColor: '#fff',
-  },
+  txCodeInput: { borderWidth: 1.5, borderColor: '#D97706', borderRadius: 8, padding: 12, fontSize: 16, color: '#111827', backgroundColor: '#fff' },
   btn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   btnDisabled: { opacity: 0.4 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },

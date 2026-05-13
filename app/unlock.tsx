@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { branding, oidcConfig } from '../branding.config';
 import { useInitializeAgent } from '../src/agent/context';
 import { useUser } from '../src/auth/UserContext';
@@ -21,6 +22,7 @@ WebBrowser.maybeCompleteAuthSession();
 const REDIRECT_URI = oidcConfig.redirectUri;
 
 export default function Unlock() {
+  const { t } = useTranslation();
   const initializeAgent = useInitializeAgent();
   const { setUser } = useUser();
   const [pin, setPin] = useState('');
@@ -51,16 +53,16 @@ export default function Unlock() {
       exchangeCode(response.params.code);
     } else if (response.type === 'error') {
       const desc = (response as { params?: { error_description?: string } }).params?.error_description ?? '';
-      setError(`Error OIDC: ${desc || 'Intenta de nuevo.'}`);
+      setError(t('unlock.oidc_error', { desc: desc || t('common.try_again') }));
     } else if (response.type === 'dismiss') {
-      setError('Autenticación cancelada. Intenta de nuevo.');
+      setError(t('unlock.oidc_cancelled'));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response]);
 
   const exchangeCode = async (code: string) => {
     if (!discovery?.tokenEndpoint) {
-      setError('Error de configuración OIDC.');
+      setError(t('unlock.config_error'));
       setLoading(false);
       return;
     }
@@ -97,7 +99,7 @@ export default function Unlock() {
       await initializeAgent(key);
       router.replace('/(tabs)/credentials');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al autenticar.');
+      setError(e instanceof Error ? e.message : t('unlock.auth_error'));
     } finally {
       setLoading(false);
     }
@@ -119,7 +121,7 @@ export default function Unlock() {
     try {
       const valid = await verifyPin(pin);
       if (!valid) {
-        setError('PIN incorrecto. Intenta de nuevo.');
+        setError(t('unlock.pin_wrong'));
         setPin('');
         return;
       }
@@ -128,7 +130,7 @@ export default function Unlock() {
       await initializeAgent(key);
       router.replace('/(tabs)/credentials');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al desbloquear.');
+      setError(e instanceof Error ? e.message : t('unlock.unlock_error'));
     } finally {
       setLoading(false);
     }
@@ -142,7 +144,7 @@ export default function Unlock() {
         resizeMode="contain"
       />
 
-      <Text style={styles.title}>Ingresa tu PIN</Text>
+      <Text style={styles.title}>{t('unlock.title')}</Text>
       <TextInput
         style={styles.pinInput}
         value={pin}
@@ -170,7 +172,7 @@ export default function Unlock() {
             disabled={pin.length < 6}
             onPress={handleUnlock}
           >
-            <Text style={styles.buttonText}>Desbloquear</Text>
+            <Text style={styles.buttonText}>{t('unlock.unlock_btn')}</Text>
           </TouchableOpacity>
 
           {oidcConfig.enabled && (
@@ -205,11 +207,7 @@ const styles = StyleSheet.create({
     padding: 32,
     backgroundColor: branding.loginBackgroundColor,
   },
-  logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 24,
-  },
+  logo: { width: 120, height: 120, marginBottom: 24 },
   title: { fontSize: 22, fontWeight: '700', color: branding.textColor, marginBottom: 24 },
   pinInput: {
     width: 180,
@@ -223,33 +221,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: branding.textColor,
   },
-  button: {
-    width: '100%',
-    height: 52,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-  },
+  button: { width: '100%', height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   error: { color: '#DC2626', fontSize: 14, marginBottom: 8 },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginVertical: 20,
-  },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 20 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dividerLabel: { marginHorizontal: 12, fontSize: 13, color: '#9CA3AF' },
-  oidcButton: {
-    width: '100%',
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  oidcButton: { width: '100%', height: 52, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' },
   oidcButtonText: { fontSize: 15, fontWeight: '600' },
 });
