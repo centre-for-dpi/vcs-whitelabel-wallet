@@ -1,4 +1,5 @@
 import type { SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
+import i18n from '../i18n';
 
 export type CredentialEntry = {
   id: string;
@@ -77,7 +78,7 @@ const humanizeSegment = (segment: string): string =>
   segment.split(/[-_]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 const formatIssuerUrl = (raw: string): string => {
-  if (!raw) return 'Emisor desconocido';
+  if (!raw) return i18n.t('receive.unknown_issuer');
 
   // 3. DID:WEB — extract the domain and humanize it
   if (raw.startsWith('did:web:')) {
@@ -86,7 +87,7 @@ const formatIssuerUrl = (raw: string): string => {
   }
 
   // 4. Other DIDs (did:key, did:jwk, etc.) — not human readable
-  if (raw.startsWith('did:')) return 'Emisor desconocido';
+  if (raw.startsWith('did:')) return i18n.t('receive.unknown_issuer');
 
   // 5. URL — take the first meaningful subdomain segment
   try {
@@ -195,7 +196,7 @@ export const formatClaimKey = (key: string): string =>
 
 export const formatClaimValue = (value: unknown): string => {
   if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if (typeof value === 'boolean') return value ? i18n.t('common.yes') : i18n.t('common.no');
   if (typeof value === 'number') return String(value);
   if (typeof value === 'string') return value;
   return JSON.stringify(value);

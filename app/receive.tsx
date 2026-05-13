@@ -26,7 +26,7 @@ async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<stri
     if (offerResp.status === 404 || offerResp.status === 410) {
       throw new Error(i18n.t('receive.offer_expired'));
     }
-    throw new Error(`Error al obtener la oferta de credencial (${offerResp.status})`);
+    throw new Error(i18n.t('receive.fetch_error', { status: offerResp.status }));
   }
   const offerPayload = await offerResp.json() as Record<string, unknown>;
 

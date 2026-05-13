@@ -1,6 +1,7 @@
 import { ClaimFormat, SdJwtVcRecord } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
+import i18n from '../../i18n';
 
 type PexEntry = {
   claimFormat: ClaimFormat;
@@ -61,10 +62,9 @@ export async function selectCredentialsForRequest(
 
       const matched = allSdJwt.find((rec) => matchesVct(rec, vctPattern));
       if (!matched) {
-        throw new Error(
-          `No se encontró una credencial para: ${descriptorId}` +
-          (vctPattern ? ` (vct: ${vctPattern})` : ''),
-        );
+        const msg = i18n.t('present.no_credential_for', { id: descriptorId }) +
+          (vctPattern ? ` (vct: ${vctPattern})` : '');
+        throw new Error(msg);
       }
 
       const pc = matched.firstCredential.prettyClaims as Record<string, unknown>;
@@ -93,11 +93,10 @@ export async function selectCredentialsForRequest(
         .map((v) => v!.split('/').pop() ?? v!);
 
       console.warn('[oid4vp/dcql] request not satisfiable — expected vct:', expectedVcts, '| wallet vct:', walletVcts);
-      throw new Error(
-        `No tienes una credencial que coincida con lo que solicita el verificador.\n` +
-        `Credencial requerida: ${expectedVcts.join(', ') || '(desconocida)'}\n` +
-        `Credenciales en tu billetera: ${walletVcts.join(', ') || '(ninguna)'}`,
-      );
+      throw new Error(i18n.t('present.dcql_not_satisfied', {
+        required: expectedVcts.join(', ') || i18n.t('present.dcql_unknown'),
+        wallet: walletVcts.join(', ') || i18n.t('present.dcql_none'),
+      }));
     }
 
     const dcqlCredentials = agent.modules.openid4vc.holder.selectCredentialsForDcqlRequest(

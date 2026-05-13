@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Colombia Wallet",
+    "name": "CDPI Wallet",
     "slug": "cdpi-wallet",
     "version": "0.1.0",
     "orientation": "portrait",
-    "scheme": "colombiawallet",
+    "scheme": "cdpiwallet",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "splash": {

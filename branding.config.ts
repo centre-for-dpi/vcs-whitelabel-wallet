@@ -33,9 +33,9 @@ export const oidcConfig: {
   buttonLabel: string;
 } = {
   enabled: true,
-  issuerUrl: 'https://qaautenticaciondigital.and.gov.co',
-  clientId: 'colombiawalletQA',
-  redirectUri: 'colombiawallet://auth',
+  issuerUrl: 'https://auth.bootcamp.cdpi.dev/realms/verifiably-demo',
+  clientId: 'cdpi-wallet-oidc-client',
+  redirectUri: 'cdpiwallet://auth',
   scopes: ['openid', 'profile', 'email'],
-  buttonLabel: 'Continuar con ID Colombia',
+  buttonLabel: 'Login with SSO',
 };

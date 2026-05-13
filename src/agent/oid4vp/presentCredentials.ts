@@ -3,6 +3,7 @@ import * as ExpoCrypto from 'expo-crypto';
 import type { WalletAgent } from '../setup';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
 import { selectCredentialsForRequest } from './selectCredentials';
+import i18n from '../../i18n';
 
 type MatchedItem = {
   descriptorId: string;
@@ -48,7 +49,7 @@ export async function presentCredentials(
       const descriptorId = descriptor.id as string;
       const pattern = extractTypePattern(descriptor);
       const record = allSdJwt.find((rec) => matchesType(rec, pattern));
-      if (!record) throw new Error(`No se encontró credencial para: ${descriptorId}`);
+      if (!record) throw new Error(i18n.t('present.no_credential_for', { id: descriptorId }));
 
       const compact = record.firstCredential.compact;
       const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
@@ -132,7 +133,7 @@ export async function presentCredentials(
       await postJwtVpPresentation(agent, jwtVcItems, definition!, responseUri, nonce, state, aud);
       return;
     }
-    throw new Error('Presentación mixta de SD-JWT y JWT VC no soportada en la misma solicitud.');
+    throw new Error(i18n.t('present.mixed_format_error'));
   }
 
   // DCQL or no PEX descriptors
