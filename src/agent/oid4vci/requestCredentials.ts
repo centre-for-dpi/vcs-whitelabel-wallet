@@ -55,7 +55,9 @@ function isLegacyEndpoint(offer: Record<string, unknown>): boolean {
     issuerMeta?.credential_endpoint as string | undefined,
     issuerMeta?.credential_issuer as string | undefined,
   ];
-  return urls.some((u) => u?.includes('/draft13') || u?.includes('/draft14'));
+  // HTTP issuers also use the manual path: Credo's internal proof JWT validator
+  // rejects http:// in the `aud` claim regardless of the requireHttps app setting.
+  return urls.some((u) => u?.includes('/draft13') || u?.includes('/draft14') || u?.startsWith('http://'));
 }
 
 /**
@@ -122,18 +124,32 @@ export async function requestOid4VciCredentials(
     const displayName = (config.display as Array<Record<string, string>> | undefined)?.[0]?.name;
 
     if (format === 'dc+sd-jwt' && legacy) {
-      // ── dc+sd-jwt on legacy endpoints (/draft13, /draft14): manual POST ─────────
+      // ── dc+sd-jwt on legacy endpoints: manual POST ────────────────────────────
+      // Some issuers (e.g. CREDEBL) advertise dc+sd-jwt in metadata but only accept
+      // vc+sd-jwt on the credential endpoint. Try dc+sd-jwt first, fall back to vc+sd-jwt.
       const vct = config.vct as string;
       const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce);
 
+      const tryFormat = async (fmt: string) =>
+        fetch(credentialEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ format: fmt, vct, proof: { proof_type: 'jwt', jwt: proofJwt } }),
+        });
+
       console.log('[oid4vci] POST dc+sd-jwt (legacy) — configId:', configId, 'vct:', vct);
-      const response = await fetch(credentialEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ format: 'dc+sd-jwt', vct, proof: { proof_type: 'jwt', jwt: proofJwt } }),
-      });
+      let response = await tryFormat('dc+sd-jwt');
       if (!response.ok) {
-        throw new Error(`Error al solicitar credencial dc+sd-jwt (${response.status}): ${await response.text()}`);
+        const bodyText = await response.text();
+        let isUnsupported = false;
+        try { isUnsupported = (JSON.parse(bodyText) as Record<string, string>).error === 'unsupported_credential_format'; } catch { /* ignore */ }
+        if (response.status === 400 && isUnsupported) {
+          console.log('[oid4vci] dc+sd-jwt not supported, retrying with vc+sd-jwt');
+          response = await tryFormat('vc+sd-jwt');
+        }
+        if (!response.ok) {
+          throw new Error(`Error al solicitar credencial dc+sd-jwt (${response.status}): ${bodyText}`);
+        }
       }
       const data = await response.json() as Record<string, unknown>;
       if (data.transaction_id) {

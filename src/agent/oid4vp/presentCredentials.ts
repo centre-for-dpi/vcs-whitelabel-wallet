@@ -19,7 +19,10 @@ type MatchedItem = {
 /**
  * Presents credentials to an OID4VP verifier.
  *
- * Credential routing (based on structure, not PD format):
+ * HTTP response_uri endpoints (dev environments) are routed to presentCredentialsHttp,
+ * which bypasses Credo entirely. All HTTPS requests use Credo natively.
+ *
+ * HTTPS credential routing (based on structure, not PD format):
  *  - Conformant SD-JWT (prettyClaims.vct defined): Credo handles natively.
  *  - W3C-wrapped SD-JWT with disclosures: POST compact SD-JWT directly as vp_token.
  *    Credo's createPresentation fails for these because PEX evaluates $.vct against
@@ -30,60 +33,29 @@ export async function presentCredentials(
   agent: WalletAgent,
   resolved: OpenId4VpResolvedAuthorizationRequest,
 ): Promise<void> {
-  const r = resolved as Record<string, unknown>;
+  const r = resolved as unknown as Record<string, unknown>;
+  const reqPayload = r.authorizationRequestPayload as Record<string, unknown>;
+  const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string | undefined;
+
+  // Credo enforces HTTPS at multiple layers — route HTTP issuers to the manual bypass.
+  if (responseUri?.startsWith('http://')) {
+    await presentCredentialsHttp(agent, resolved);
+    return;
+  }
+
+  // ── HTTPS path — Credo handles natively ──────────────────────────────────────
+
   const pex = r.presentationExchange as Record<string, unknown> | undefined;
   const definition = pex?.definition as Record<string, unknown> | undefined;
   const descriptors = (definition?.input_descriptors as Array<Record<string, unknown>>) ?? [];
-  const reqPayload = r.authorizationRequestPayload as Record<string, unknown>;
-
-  const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string | undefined;
   const nonce = reqPayload.nonce as string | undefined;
   const state = reqPayload.state as string | undefined;
   const aud = (reqPayload.client_id ?? responseUri) as string;
 
   if (pex && descriptors.length > 0 && responseUri && nonce) {
-    const allSdJwt = await agent.sdJwtVc.getAll();
-    const matched: MatchedItem[] = [];
-
-    for (const descriptor of descriptors) {
-      const descriptorId = descriptor.id as string;
-      const pattern = extractTypePattern(descriptor);
-      const record = allSdJwt.find((rec) => matchesType(rec, pattern));
-      if (!record) throw new Error(i18n.t('present.no_credential_for', { id: descriptorId }));
-
-      const compact = record.firstCredential.compact;
-      const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
-      const tags = record.getTags() as Record<string, unknown>;
-      // Prefer tag (set on newly issued records); fall back to credentialInstances for older records
-      const holderKeyId = (tags.holderKeyId as string | undefined)
-        ?? ((record as unknown as { credentialInstances?: Array<{ kmsKeyId?: string }> })
-          .credentialInstances?.[0]?.kmsKeyId);
-
-      let holderDid: string | undefined;
-      try {
-        const b64 = compact.split('~')[0].split('.')[1];
-        const payload = JSON.parse(atob(b64.replace(/-/g, '+').replace(/_/g, '/')));
-        holderDid = payload.sub as string | undefined;
-      } catch { /* best-effort */ }
-
-      matched.push({
-        descriptorId,
-        pdFormat: extractDescriptorFormat(descriptor),
-        record,
-        compact,
-        isConformant: pc.vct !== undefined,
-        hasDisclosures: compact.includes('~'),
-        holderKeyId,
-        holderDid,
-      });
-      console.log(
-        `[oid4vp] matched ${descriptorId} → record ${record.id}`,
-        `conformant:${pc.vct !== undefined} disclosures:${compact.includes('~')}`,
-      );
-    }
+    const matched = await buildMatchedItems(agent, descriptors);
 
     if (matched.every((m) => m.isConformant)) {
-      // All conformant → Credo handles natively
       const built: Record<string, Array<{ claimFormat: ClaimFormat; credentialRecord: SdJwtVcRecord; disclosedPayload: Record<string, unknown> }>> = {};
       for (const m of matched) {
         built[m.descriptorId] = [{
@@ -136,13 +108,219 @@ export async function presentCredentials(
     throw new Error(i18n.t('present.mixed_format_error'));
   }
 
-  // DCQL or no PEX descriptors
+  // DCQL or no PEX descriptors — Credo handles
   const selected = await selectCredentialsForRequest(agent, resolved);
   await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
     authorizationRequestPayload: resolved.authorizationRequestPayload,
     ...(selected.presentationExchange ? { presentationExchange: selected.presentationExchange } : {}),
     ...(selected.dcql ? { dcql: selected.dcql } : {}),
   });
+}
+
+// ── HTTP bypass (dev environments only) ───────────────────────────────────────
+//
+// Called when response_uri is HTTP. Credo rejects HTTP URLs at multiple validation
+// layers, so we post the presentation directly without going through Credo.
+
+async function presentCredentialsHttp(
+  agent: WalletAgent,
+  resolved: OpenId4VpResolvedAuthorizationRequest,
+): Promise<void> {
+  const r = resolved as unknown as Record<string, unknown>;
+  const reqPayload = r.authorizationRequestPayload as Record<string, unknown>;
+  const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string;
+  const nonce = reqPayload.nonce as string;
+  const state = reqPayload.state as string | undefined;
+  const aud = (reqPayload.client_id ?? responseUri) as string;
+
+  const pex = r.presentationExchange as Record<string, unknown> | undefined;
+  const definition = pex?.definition as Record<string, unknown> | undefined;
+  const descriptors = (definition?.input_descriptors as Array<Record<string, unknown>>) ?? [];
+
+  if (pex && descriptors.length > 0) {
+    const matched = await buildMatchedItems(agent, descriptors);
+    const sdJwtItems = matched.filter((m) => m.hasDisclosures);
+    const jwtVcItems = matched.filter((m) => !m.hasDisclosures);
+
+    if (sdJwtItems.length > 0 && jwtVcItems.length === 0) {
+      await postSdJwtPresentation(sdJwtItems, descriptors, definition!, responseUri, nonce, state, aud, agent);
+    } else if (jwtVcItems.length > 0 && sdJwtItems.length === 0) {
+      await postJwtVpPresentation(agent, jwtVcItems, definition!, responseUri, nonce, state, aud);
+    } else {
+      throw new Error(i18n.t('present.mixed_format_error'));
+    }
+    return;
+  }
+
+  // DCQL
+  await postDcqlPresentation(agent, resolved);
+}
+
+// ── Credential matching ───────────────────────────────────────────────────────
+
+async function buildMatchedItems(
+  agent: WalletAgent,
+  descriptors: Array<Record<string, unknown>>,
+): Promise<MatchedItem[]> {
+  const allSdJwt = await agent.sdJwtVc.getAll();
+  const matched: MatchedItem[] = [];
+
+  for (const descriptor of descriptors) {
+    const descriptorId = descriptor.id as string;
+    const pattern = extractTypePattern(descriptor);
+    const record = allSdJwt.find((rec) => matchesType(rec, pattern));
+    if (!record) throw new Error(i18n.t('present.no_credential_for', { id: descriptorId }));
+
+    const compact = record.firstCredential.compact;
+    const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
+    const tags = record.getTags() as Record<string, unknown>;
+    const holderKeyId = (tags.holderKeyId as string | undefined)
+      ?? ((record as unknown as { credentialInstances?: Array<{ kmsKeyId?: string }> })
+        .credentialInstances?.[0]?.kmsKeyId);
+
+    let holderDid: string | undefined;
+    try {
+      const b64 = compact.split('~')[0].split('.')[1];
+      const payload = JSON.parse(atob(b64.replace(/-/g, '+').replace(/_/g, '/')));
+      holderDid = payload.sub as string | undefined;
+    } catch { /* best-effort */ }
+
+    matched.push({
+      descriptorId,
+      pdFormat: extractDescriptorFormat(descriptor),
+      record,
+      compact,
+      isConformant: pc.vct !== undefined,
+      hasDisclosures: compact.includes('~'),
+      holderKeyId,
+      holderDid,
+    });
+    console.log(
+      `[oid4vp] matched ${descriptorId} → record ${record.id}`,
+      `conformant:${pc.vct !== undefined} disclosures:${compact.includes('~')}`,
+    );
+  }
+  return matched;
+}
+
+// ── DCQL manual presentation (HTTP issuers) ───────────────────────────────────
+
+async function postDcqlPresentation(
+  agent: WalletAgent,
+  resolved: OpenId4VpResolvedAuthorizationRequest,
+): Promise<void> {
+  const r = resolved as unknown as Record<string, unknown>;
+  const reqPayload = r.authorizationRequestPayload as Record<string, unknown>;
+  const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string;
+  const nonce = reqPayload.nonce as string;
+  const state = reqPayload.state as string | undefined;
+  const aud = (reqPayload.client_id ?? responseUri) as string;
+  const dcqlQuery = (reqPayload.dcql_query ?? (r.dcql as Record<string, unknown> | undefined)?.dcqlQuery) as Record<string, unknown> | undefined;
+  const credQueries = (dcqlQuery?.credentials as Array<Record<string, unknown>>) ?? [];
+
+  const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
+  const allSdJwt = await agent.sdJwtVc.getAll();
+
+  const presentations: Record<string, string> = {};
+
+  for (const cq of credQueries) {
+    const credId = cq.id as string;
+    const vctValues = ((cq.meta as Record<string, unknown> | undefined)?.vct_values as string[]) ?? [];
+
+    const record = vctValues.length > 0
+      ? allSdJwt.find((rec) => {
+          const vct = (rec.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
+          return vct && vctValues.some((v) => vct === v || vct.endsWith(v) || v.endsWith(vct));
+        }) ?? allSdJwt[0]
+      : allSdJwt[0];
+
+    if (!record) throw new Error(i18n.t('present.no_credential_for', { id: credId }));
+
+    const credVct = (record.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
+    console.log('[oid4vp] DCQL', credId, '— vct_values:', vctValues, '| credential vct:', credVct);
+
+    const compact = record.firstCredential.compact;
+    const tags = record.getTags() as Record<string, unknown>;
+    const holderKeyId = tags.holderKeyId as string | undefined;
+    let holderDid: string | undefined;
+    let hasCnf = false;
+    try {
+      const b64 = compact.split('~')[0].split('.')[1];
+      const jwtPayload = JSON.parse(atob(b64.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+      holderDid = (jwtPayload.sub as string | undefined)
+        ?? ((jwtPayload.cnf as Record<string, string> | undefined)?.kid?.split('#')[0]);
+      hasCnf = !!jwtPayload.cnf;
+    } catch { /* best-effort */ }
+    console.log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| holderKeyId:', !!holderKeyId);
+
+    // Selective disclosure for requested claims
+    const claimPaths = ((cq.claims as Array<Record<string, unknown>>) ?? [])
+      .map((c) => {
+        const path = c.path as Array<string | number> | undefined;
+        return String(path?.[path.length - 1] ?? '');
+      })
+      .filter(Boolean);
+
+    const parts = compact.split('~');
+    const allDisclosures = parts.slice(1).filter((d) => d.length > 0);
+    type D = { raw: string; name: string };
+    const decoded: D[] = [];
+    for (const raw of allDisclosures) {
+      try {
+        const arr = JSON.parse(atob(raw.replace(/-/g, '+').replace(/_/g, '/')));
+        if (Array.isArray(arr) && arr.length >= 2) decoded.push({ raw, name: arr[1] as string });
+      } catch { /* best-effort */ }
+    }
+    const selected = claimPaths.length > 0
+      ? decoded.filter((d) => claimPaths.includes(d.name)).map((d) => d.raw)
+      : decoded.map((d) => d.raw);
+
+    console.log('[oid4vp] DCQL', credId, '— claimPaths:', claimPaths, '| selected disclosures:', selected.length, '/ total:', decoded.length);
+
+    const sdJwtBase = [parts[0], ...selected, ''].join('~');
+    let presentation = sdJwtBase;
+
+    // Only attach KB-JWT if the credential declares key binding via cnf.
+    // Sending KB-JWT for a credential without cnf causes CREDEBL to reject the presentation.
+    if (holderKeyId && hasCnf) {
+      try {
+        const sdHashB64 = await ExpoCrypto.digestStringAsync(
+          ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+          sdJwtBase,
+          { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
+        );
+        const sdHash = sdHashB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        const kbHeaderObj: Record<string, string> = { typ: 'kb+jwt', alg: 'EdDSA' };
+        if (holderDid) kbHeaderObj.kid = `${holderDid}#${holderDid.split(':').pop()}`;
+        const h64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(kbHeaderObj)));
+        const p64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify({ iat: Math.floor(Date.now() / 1000), aud, nonce, sd_hash: sdHash })));
+        const { signature } = await kms.sign({ keyId: holderKeyId, algorithm: 'EdDSA', data: TypedArrayEncoder.fromString(`${h64}.${p64}`) });
+        presentation = `${sdJwtBase}${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`;
+        console.log('[oid4vp] DCQL KB-JWT built for:', credId, '| aud:', aud.slice(0, 60));
+      } catch (e) {
+        console.warn('[oid4vp] DCQL KB-JWT failed, sending without:', e);
+      }
+    }
+    presentations[credId] = presentation;
+  }
+
+  // vp_token is a JSON object keyed by credential query id — values are plain strings (not arrays).
+  const vpToken = JSON.stringify(presentations);
+
+  const body = new URLSearchParams({ vp_token: vpToken });
+  if (state) body.set('state', state);
+
+  console.log('[oid4vp] DCQL POST →', responseUri.slice(0, 80));
+  const resp = await fetch(responseUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  const respText = await resp.text().catch(() => '');
+  if (!resp.ok) {
+    throw new Error(`Error al presentar credencial DCQL (${resp.status}): ${respText.slice(0, 300)}`);
+  }
+  console.log('[oid4vp] DCQL presentation accepted:', resp.status);
 }
 
 // ── SD-JWT direct presentation ────────────────────────────────────────────────
@@ -164,15 +342,6 @@ async function postSdJwtPresentation(
     const jwtPart = parts[0];
     const allDisclosures = parts.slice(1).filter((d) => d.length > 0);
 
-    // Log full JWT payload for debugging
-    try {
-      const payloadB64 = jwtPart.split('.')[1];
-      const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-      console.log('[oid4vp] full JWT payload keys:', Object.keys(payload).join(','));
-      console.log('[oid4vp] full JWT payload:', JSON.stringify(payload).slice(0, 1500));
-    } catch { /* best-effort */ }
-
-    // Decode disclosures: [salt, claim_name, claim_value]
     type Disclosure = { raw: string; name: string };
     const decoded: Disclosure[] = [];
     for (const raw of allDisclosures) {
@@ -180,23 +349,16 @@ async function postSdJwtPresentation(
         const arr = JSON.parse(atob(raw.replace(/-/g, '+').replace(/_/g, '/')));
         if (Array.isArray(arr) && arr.length >= 2) {
           decoded.push({ raw, name: arr[1] as string });
-          console.log('[oid4vp] disclosure:', arr[1], '=', String(arr[2]).slice(0, 50));
         }
       } catch { /* best-effort */ }
     }
 
-    // Selective disclosure: only include disclosures for fields the PD requests
     const descriptor = allDescriptors.find((d) => d.id === item.descriptorId);
     const requestedNames = extractRequestedClaimNames(descriptor);
-    console.log('[oid4vp] PD requested claim names:', requestedNames.join(',') || '(all)');
-
     const selectedDisclosures = requestedNames.length > 0
       ? decoded.filter((d) => requestedNames.includes(d.name)).map((d) => d.raw)
       : decoded.map((d) => d.raw);
 
-    console.log('[oid4vp] selected disclosures:', selectedDisclosures.length, 'of', decoded.length);
-
-    // Build the SD-JWT presentation string
     const sdJwtBase = [jwtPart, ...selectedDisclosures, ''].join('~');
 
     if (item.holderKeyId && item.holderDid) {
@@ -223,8 +385,6 @@ async function postSdJwtPresentation(
       } catch (e) {
         console.warn('[oid4vp] KB-JWT build failed, sending without KB-JWT:', e);
       }
-    } else {
-      console.log('[oid4vp] no holderKeyId for', item.descriptorId, '— sending without KB-JWT');
     }
     return sdJwtBase;
   };
@@ -243,8 +403,7 @@ async function postSdJwtPresentation(
     })),
   };
 
-  console.log('[oid4vp] POSTing SD-JWT VP to:', responseUri.slice(0, 80),
-    'format:', items[0].pdFormat);
+  console.log('[oid4vp] SD-JWT POST →', responseUri.slice(0, 80), 'format:', items[0].pdFormat);
   await postToResponseUri(responseUri, vpToken, submission, state);
 }
 
@@ -257,7 +416,6 @@ function extractRequestedClaimNames(descriptor: Record<string, unknown> | undefi
   for (const field of fields) {
     const paths = field.path as string[] | undefined;
     for (const path of paths ?? []) {
-      // Extract last segment: $.holder → holder, $.vc.holder → holder
       const name = path.split('.').pop()?.replace(/[[\]]/g, '');
       if (name && name !== '$') names.push(name);
     }
@@ -333,7 +491,7 @@ async function postJwtVpPresentation(
     })),
   };
 
-  console.log('[oid4vp] POSTing JWT VP to:', responseUri.slice(0, 80));
+  console.log('[oid4vp] JWT VP POST →', responseUri.slice(0, 80));
   await postToResponseUri(responseUri, vpToken, submission, state);
 }
 

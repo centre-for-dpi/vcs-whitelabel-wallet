@@ -14,7 +14,7 @@ import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc'
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
 import i18n from '../src/i18n';
-import { normalizeAuthorizationRequestUrl } from '../src/agent/oid4vp/normalizeRequest';
+import { normalizeAuthorizationRequestUrl, isHttpOid4VpRequest, resolveHttpOid4VpRequest } from '../src/agent/oid4vp/normalizeRequest';
 import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
 
 type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
@@ -48,10 +48,15 @@ export default function Present() {
     const { agent } = agentState;
     try {
       console.log('[present] url param:', url.slice(0, 200));
-      const resolveUrl = await normalizeAuthorizationRequestUrl(url);
-      console.log('[present] normalized url:', resolveUrl.slice(0, 200));
+      let resolved;
+      if (isHttpOid4VpRequest(url)) {
+        resolved = await resolveHttpOid4VpRequest(url);
+      } else {
+        const resolveUrl = await normalizeAuthorizationRequestUrl(url);
+        console.log('[present] normalized url:', resolveUrl.slice(0, 200));
+        resolved = await agent.modules.openid4vc.holder.resolveOpenId4VpAuthorizationRequest(resolveUrl);
+      }
 
-      const resolved = await agent.modules.openid4vc.holder.resolveOpenId4VpAuthorizationRequest(resolveUrl);
       setResolvedRequest(resolved);
 
       const r = resolved as Record<string, unknown>;

@@ -1,15 +1,106 @@
 /**
  * Normalizes an OID4VP authorization request URL before passing it to Credo's resolver.
  *
- * Applies three patches:
- *  1. client_id patch  — when client_id_scheme=redirect_uri the spec requires
- *     client_id === response_uri. Walt.id sends a mismatched value; we fix it.
- *  2. PD URI fetch     — Credo's resolver doesn't support presentation_definition_uri;
- *     we fetch the document and inline it as presentation_definition.
- *  3. Format alg       — PEX v2 requires format objects to include { alg: [...] }.
- *     Walt.id sends { jwt_vc_json: {} } / { vc+sd-jwt: {} } without alg. We inject
- *     it for all known format keys so PEX validation passes. The format itself is
- *     preserved so presentCredentials.ts can read it for presentation_submission.
+ * For HTTP issuers (dev environments), Credo's resolver rejects the request at multiple
+ * validation layers (HTTPS-only URLs, signed-JAR requirements, version inference conflicts).
+ * In that case we bypass Credo entirely: fetch and decode the JWT ourselves, build a
+ * synthetic resolved-request object, and let presentCredentials post manually.
+ *
+ * For HTTPS issuers the original patching path applies:
+ *  1. client_id patch  — when client_id_scheme=redirect_uri, client_id must equal response_uri.
+ *  2. PD URI fetch     — Credo doesn't support presentation_definition_uri; we inline it.
+ *  3. Format alg       — PEX v2 requires { alg: [...] } in format constraints.
+ */
+
+import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
+
+// ── HTTP bypass ───────────────────────────────────────────────────────────────
+
+function decodeJwtPayload(jwt: string): Record<string, unknown> {
+  const part = jwt.trim().split('.')[1] ?? '';
+  const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+  return JSON.parse(json) as Record<string, unknown>;
+}
+
+/**
+ * Returns true when the URL uses an HTTP request_uri (non-HTTPS issuer).
+ * Credo cannot resolve these — use resolveHttpOid4VpRequest instead.
+ */
+export function isHttpOid4VpRequest(rawUrl: string): boolean {
+  const qs = rawUrl.indexOf('?');
+  if (qs === -1) return false;
+  const params = new URLSearchParams(rawUrl.slice(qs + 1));
+  const requestUri = params.get('request_uri');
+  return !!requestUri?.startsWith('http://');
+}
+
+/**
+ * Manually resolves an OID4VP authorization request from an HTTP issuer,
+ * bypassing Credo's resolver which enforces HTTPS, signed-JAR, and version checks.
+ * Returns a synthetic object compatible with presentCredentials.ts.
+ */
+export async function resolveHttpOid4VpRequest(
+  rawUrl: string,
+): Promise<OpenId4VpResolvedAuthorizationRequest> {
+  const qs = rawUrl.indexOf('?');
+  const params = new URLSearchParams(qs >= 0 ? rawUrl.slice(qs + 1) : '');
+  const requestUri = params.get('request_uri')!;
+
+  console.log('[oid4vp] HTTP bypass — fetching request_uri:', requestUri.slice(0, 80));
+  const resp = await fetch(requestUri);
+  if (!resp.ok) throw new Error(`Failed to fetch authorization request (${resp.status})`);
+  const jwt = await resp.text();
+  const payload = decodeJwtPayload(jwt.trim());
+  console.log('[oid4vp] HTTP bypass — decoded JAR payload keys:', Object.keys(payload).join(','));
+
+  const responseUri = (payload.response_uri ?? payload.redirect_uri) as string;
+  const nonce = payload.nonce as string;
+  const state = payload.state as string | undefined;
+  const clientId = params.get('client_id') ?? payload.client_id as string;
+
+  // Build the synthetic authorizationRequestPayload Credo consumers expect
+  const authorizationRequestPayload = {
+    ...payload,
+    client_id: clientId,
+    response_uri: responseUri,
+    nonce,
+    state,
+  } as Record<string, unknown>;
+
+  // Build presentationExchange if PD is present
+  let presentationExchange: Record<string, unknown> | undefined;
+  if (payload.presentation_definition) {
+    presentationExchange = {
+      definition: payload.presentation_definition,
+      credentialsForRequest: {},
+    };
+  }
+
+  // Build dcql if present. Pass the actual credential queries so present.tsx
+  // can display requestedTypes and requestedFields on the confirm screen.
+  let dcql: Record<string, unknown> | undefined;
+  if (payload.dcql_query) {
+    const dcqlQuery = payload.dcql_query as Record<string, unknown>;
+    const credQueries = (dcqlQuery.credentials as Array<Record<string, unknown>>) ?? [];
+    dcql = { queryResult: { credentials: credQueries }, dcqlQuery: payload.dcql_query };
+  }
+
+  console.log('[oid4vp] HTTP bypass — response_uri:', responseUri?.slice(0, 80));
+  console.log('[oid4vp] HTTP bypass — pex:', !!presentationExchange, '| dcql:', !!dcql);
+
+  return {
+    authorizationRequestPayload,
+    presentationExchange,
+    dcql,
+    verifier: { effectiveClientId: clientId } as unknown,
+  } as unknown as OpenId4VpResolvedAuthorizationRequest;
+}
+
+// ── HTTPS issuer path ─────────────────────────────────────────────────────────
+
+/**
+ * Normalizes an OID4VP authorization request URL for HTTPS issuers before passing
+ * it to Credo's resolveOpenId4VpAuthorizationRequest.
  */
 export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<string> {
   const qsStart = rawUrl.indexOf('?');
@@ -43,8 +134,6 @@ export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<
         const fmt = descriptor.format as Record<string, unknown> | undefined;
         if (!fmt) continue;
 
-        // Patch 3: inject required alg for JWT formats that are missing it.
-        // SD-JWT formats (vc+sd-jwt, dc+sd-jwt) use {} — alg is NOT allowed there.
         const ALG = ['ES256', 'EdDSA'];
         for (const fmtKey of ['jwt_vc_json', 'jwt_vp_json', 'jwt_vc', 'jwt_vp', 'jwt']) {
           const fmtObj = fmt[fmtKey] as Record<string, unknown> | undefined;
