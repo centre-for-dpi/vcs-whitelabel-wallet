@@ -123,9 +123,21 @@ const es: Translation = {
     body3: ').',
     back_btn: 'Volver',
   },
+  history: {
+    title: 'Actividad',
+    empty_title: 'Sin presentaciones',
+    empty_body: 'Cada vez que presentes una credencial quedará registrado aquí.',
+    label_verifier: 'Verificador',
+    label_purpose: 'Propósito',
+    label_credentials: 'Credenciales',
+    label_fields: 'Campos compartidos',
+    clear_btn: 'Borrar historial',
+    clear_confirm: '¿Eliminar todo el historial de presentaciones?',
+  },
   tabs: {
     credentials: 'Credenciales',
     scan: 'Escanear',
+    history: 'Actividad',
     settings: 'Ajustes',
   },
   modals: {

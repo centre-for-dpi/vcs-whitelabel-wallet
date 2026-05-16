@@ -123,9 +123,21 @@ const fr: Translation = {
     body3: ').',
     back_btn: 'Retour',
   },
+  history: {
+    title: 'Activité',
+    empty_title: 'Aucune présentation',
+    empty_body: 'Chaque présentation de justificatif sera enregistrée ici.',
+    label_verifier: 'Vérificateur',
+    label_purpose: 'Objet',
+    label_credentials: 'Justificatifs',
+    label_fields: 'Champs partagés',
+    clear_btn: "Effacer l'historique",
+    clear_confirm: "Supprimer tout l'historique de présentation ?",
+  },
   tabs: {
     credentials: 'Justificatifs',
     scan: 'Scanner',
+    history: 'Activité',
     settings: 'Paramètres',
   },
   modals: {

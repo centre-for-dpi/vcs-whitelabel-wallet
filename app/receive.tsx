@@ -232,7 +232,7 @@ export default function Receive() {
           {offerInfo.txCodeRequired && (
             <View style={styles.txCodeBox}>
               <Text style={styles.txCodeLabel}>
-                {offerInfo.txCodeDescription ?? t('receive.tx_code_default')}
+                {t('receive.tx_code_default')}
               </Text>
               <TextInput
                 style={styles.txCodeInput}

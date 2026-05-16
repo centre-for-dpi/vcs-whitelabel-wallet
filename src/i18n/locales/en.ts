@@ -121,9 +121,21 @@ const en = {
     body3: ').',
     back_btn: 'Back',
   },
+  history: {
+    title: 'Activity',
+    empty_title: 'No presentations yet',
+    empty_body: 'Each time you present a credential it will be recorded here.',
+    label_verifier: 'Verifier',
+    label_purpose: 'Purpose',
+    label_credentials: 'Credentials',
+    label_fields: 'Shared fields',
+    clear_btn: 'Clear history',
+    clear_confirm: 'Delete all presentation history?',
+  },
   tabs: {
     credentials: 'Credentials',
     scan: 'Scan',
+    history: 'Activity',
     settings: 'Settings',
   },
   modals: {

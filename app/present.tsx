@@ -16,6 +16,7 @@ import { useAgentState } from '../src/agent/context';
 import i18n from '../src/i18n';
 import { normalizeAuthorizationRequestUrl, isHttpOid4VpRequest, resolveHttpOid4VpRequest } from '../src/agent/oid4vp/normalizeRequest';
 import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
+import { addPresentation } from '../src/utils/presentationHistory';
 
 type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
 
@@ -157,6 +158,15 @@ export default function Present() {
       console.log('[present] presenting credentials...');
       await presentCredentials(agent, resolvedRequest);
       console.log('[present] presentation successful');
+      if (requestInfo) {
+        addPresentation({
+          timestamp: new Date().toISOString(),
+          verifier: requestInfo.verifier,
+          purpose: requestInfo.purpose,
+          credentialTypes: requestInfo.requestedTypes,
+          sharedFields: requestInfo.requestedFields,
+        }).catch((e) => console.error('[history] save error:', e));
+      }
       setStep('done');
     } catch (e: unknown) {
       console.error('[present] handlePresent FAILED:', e);
@@ -307,9 +317,9 @@ const styles = StyleSheet.create({
   credName: { fontSize: 15, color: '#111827' },
   notice: { backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 20 },
   noticeText: { fontSize: 13, color: '#92400E', lineHeight: 18 },
-  btn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12, width: '100%' },
+  btn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12, width: '100%', alignSelf: 'stretch' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  cancelBtn: { height: 44, justifyContent: 'center', alignItems: 'center' },
+  cancelBtn: { height: 44, justifyContent: 'center', alignItems: 'center', alignSelf: 'stretch' },
   cancelText: { color: '#6B7280', fontSize: 15 },
   doneIcon: { fontSize: 56, marginBottom: 16 },
   doneTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 8 },

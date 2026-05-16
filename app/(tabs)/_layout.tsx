@@ -52,6 +52,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="history"
+        options={{
+          title: t('tabs.history'),
+          tabBarLabel: t('tabs.history'),
+          tabBarIcon: ({ focused }) => <Icon label="📋" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: t('tabs.settings'),
