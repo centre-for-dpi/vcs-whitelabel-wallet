@@ -8,7 +8,7 @@ White-label mobile verifiable credential wallet built on [Credo-TS](https://gith
 
 - **Credential issuance** — OpenID4VCI (Authorization Code and Pre-Authorized Code flows)
 - **Credential presentation** — OpenID4VP with DCQL query support and selective SD-JWT disclosure
-- **SSO login** — OIDC (Keycloak) via `expo-auth-session`
+- **SSO login** — OIDC via `expo-auth-session`
 - **Presentation history** — local log of every OID4VP presentation with verifier, purpose, and disclosed fields
 - **Biometric unlock** — Face ID / fingerprint gate on app open
 - **White-label** — all colors, name, and logo configured in a single file (`branding.config.ts`)
@@ -58,12 +58,11 @@ export const branding = {
 };
 
 // SSO login — configure to enable OIDC authentication
-// Keycloak issuerUrl format: https://<host>/realms/<realm>
 export const oidcConfig = {
   enabled: true,
-  issuerUrl: 'https://<keycloak-host>/realms/<realm>',
+  issuerUrl: 'https://<oidc-host>',
   clientId: '<client-id>',
-  redirectUri: '<app-scheme>://auth', // register this exactly in Keycloak → Client → Valid redirect URIs
+  redirectUri: '<app-scheme>://auth', 
   scopes: ['openid', 'profile', 'email'],
   buttonLabel: 'Continue with <provider>',
 };
