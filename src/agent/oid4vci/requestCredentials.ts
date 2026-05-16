@@ -3,6 +3,19 @@ import type { WalletAgent } from '../setup';
 import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
 import { credentialBindingResolver } from '../credentialBinding';
 
+/* eslint-disable no-console */
+const log = __DEV__ ? console.log.bind(console) : () => {};
+
+async function fetchWithTimeout(url: string, opts: RequestInit, ms = 30_000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type TokenResponse = {
   accessToken: string;
   cNonce?: string;
@@ -131,20 +144,20 @@ export async function requestOid4VciCredentials(
       const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce);
 
       const tryFormat = async (fmt: string) =>
-        fetch(credentialEndpoint, {
+        fetchWithTimeout(credentialEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           body: JSON.stringify({ format: fmt, vct, proof: { proof_type: 'jwt', jwt: proofJwt } }),
         });
 
-      console.log('[oid4vci] POST dc+sd-jwt (legacy) — configId:', configId, 'vct:', vct);
+      log('[oid4vci] POST dc+sd-jwt (legacy) — configId:', configId, 'vct:', vct);
       let response = await tryFormat('dc+sd-jwt');
       if (!response.ok) {
         const bodyText = await response.text();
         let isUnsupported = false;
         try { isUnsupported = (JSON.parse(bodyText) as Record<string, string>).error === 'unsupported_credential_format'; } catch { /* ignore */ }
         if (response.status === 400 && isUnsupported) {
-          console.log('[oid4vci] dc+sd-jwt not supported, retrying with vc+sd-jwt');
+          log('[oid4vci] dc+sd-jwt not supported, retrying with vc+sd-jwt');
           response = await tryFormat('vc+sd-jwt');
         }
         if (!response.ok) {
@@ -178,8 +191,8 @@ export async function requestOid4VciCredentials(
       const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce);
       requestBody.proof = { proof_type: 'jwt', jwt: proofJwt };
 
-      console.log('[oid4vci] POST', format, '(legacy) — configId:', configId);
-      const response = await fetch(credentialEndpoint, {
+      log('[oid4vci] POST', format, '(legacy) — configId:', configId);
+      const response = await fetchWithTimeout(credentialEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(requestBody),
@@ -210,7 +223,7 @@ export async function requestOid4VciCredentials(
       dpop,
       credentialBindingResolver,
     });
-    console.log('[oid4vci] requestCredentials returned:', credentials.length,
+    log('[oid4vci] requestCredentials returned:', credentials.length,
       'immediate,', deferredCredentials.length, 'deferred');
 
     let allCredentials = [...credentials];
@@ -237,11 +250,11 @@ export async function requestOid4VciCredentials(
 
 function logJwtStructure(prefix: string, compactJwt: string): void {
   const parts = compactJwt.split('~')[0].split('.');
-  console.log(prefix, 'disclosures:', compactJwt.split('~').length - 1);
+  log(prefix, 'disclosures:', compactJwt.split('~').length - 1);
   try {
     const decode = (b64: string) =>
       atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
-    console.log(prefix, 'JWT header:', decode(parts[0] ?? '').slice(0, 200));
-    console.log(prefix, 'JWT payload:', decode(parts[1] ?? '').slice(0, 2000));
+    log(prefix, 'JWT header:', decode(parts[0] ?? '').slice(0, 200));
+    log(prefix, 'JWT payload:', decode(parts[1] ?? '').slice(0, 2000));
   } catch { /* best-effort */ }
 }

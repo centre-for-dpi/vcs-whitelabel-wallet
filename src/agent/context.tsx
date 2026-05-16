@@ -36,6 +36,9 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       setState({ status: 'error', message });
+      // Re-throw so callers (unlock screen) can surface the error locally
+      // instead of navigating away while the agent is in error state.
+      throw e;
     }
   }, []);
 

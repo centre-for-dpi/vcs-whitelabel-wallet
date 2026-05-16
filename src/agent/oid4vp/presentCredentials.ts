@@ -5,6 +5,9 @@ import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc'
 import { selectCredentialsForRequest } from './selectCredentials';
 import i18n from '../../i18n';
 
+/* eslint-disable no-console */
+const log = __DEV__ ? console.log.bind(console) : () => {};
+
 type MatchedItem = {
   descriptorId: string;
   pdFormat: string;       // format key from the PD descriptor (e.g. 'vc+sd-jwt')
@@ -179,11 +182,8 @@ async function buildMatchedItems(
         .credentialInstances?.[0]?.kmsKeyId);
 
     let holderDid: string | undefined;
-    try {
-      const b64 = compact.split('~')[0].split('.')[1];
-      const payload = JSON.parse(atob(b64.replace(/-/g, '+').replace(/_/g, '/')));
-      holderDid = payload.sub as string | undefined;
-    } catch { /* best-effort */ }
+    const jwtPayload = decodeJwtPayload(compact.split('~')[0]);
+    if (jwtPayload) holderDid = jwtPayload.sub as string | undefined;
 
     matched.push({
       descriptorId,
@@ -195,7 +195,7 @@ async function buildMatchedItems(
       holderKeyId,
       holderDid,
     });
-    console.log(
+    log(
       `[oid4vp] matched ${descriptorId} → record ${record.id}`,
       `conformant:${pc.vct !== undefined} disclosures:${compact.includes('~')}`,
     );
@@ -231,27 +231,29 @@ async function postDcqlPresentation(
       ? allSdJwt.find((rec) => {
           const vct = (rec.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
           return vct && vctValues.some((v) => vct === v || vct.endsWith(v) || v.endsWith(vct));
-        }) ?? allSdJwt[0]
+        })
       : allSdJwt[0];
 
-    if (!record) throw new Error(i18n.t('present.no_credential_for', { id: credId }));
+    if (!record) {
+      console.warn('[oid4vp] DCQL no match — vct_values:', vctValues, '| wallet has', allSdJwt.length, 'credential(s)');
+      throw new Error(i18n.t('present.no_credential_for', { id: credId }));
+    }
 
     const credVct = (record.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
-    console.log('[oid4vp] DCQL', credId, '— vct_values:', vctValues, '| credential vct:', credVct);
+    log('[oid4vp] DCQL', credId, '— vct_values:', vctValues, '| credential vct:', credVct);
 
     const compact = record.firstCredential.compact;
     const tags = record.getTags() as Record<string, unknown>;
     const holderKeyId = tags.holderKeyId as string | undefined;
     let holderDid: string | undefined;
     let hasCnf = false;
-    try {
-      const b64 = compact.split('~')[0].split('.')[1];
-      const jwtPayload = JSON.parse(atob(b64.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
-      holderDid = (jwtPayload.sub as string | undefined)
-        ?? ((jwtPayload.cnf as Record<string, string> | undefined)?.kid?.split('#')[0]);
-      hasCnf = !!jwtPayload.cnf;
-    } catch { /* best-effort */ }
-    console.log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| holderKeyId:', !!holderKeyId);
+    const dcqlPayload = decodeJwtPayload(compact.split('~')[0]);
+    if (dcqlPayload) {
+      holderDid = (dcqlPayload.sub as string | undefined)
+        ?? ((dcqlPayload.cnf as Record<string, string> | undefined)?.kid?.split('#')[0]);
+      hasCnf = !!dcqlPayload.cnf;
+    }
+    log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| holderKeyId:', !!holderKeyId);
 
     // Selective disclosure for requested claims
     const claimPaths = ((cq.claims as Array<Record<string, unknown>>) ?? [])
@@ -275,7 +277,7 @@ async function postDcqlPresentation(
       ? decoded.filter((d) => claimPaths.includes(d.name)).map((d) => d.raw)
       : decoded.map((d) => d.raw);
 
-    console.log('[oid4vp] DCQL', credId, '— claimPaths:', claimPaths, '| selected disclosures:', selected.length, '/ total:', decoded.length);
+    log('[oid4vp] DCQL', credId, '— claimPaths:', claimPaths, '| selected disclosures:', selected.length, '/ total:', decoded.length);
 
     const sdJwtBase = [parts[0], ...selected, ''].join('~');
     let presentation = sdJwtBase;
@@ -284,19 +286,8 @@ async function postDcqlPresentation(
     // Sending KB-JWT for a credential without cnf causes CREDEBL to reject the presentation.
     if (holderKeyId && hasCnf) {
       try {
-        const sdHashB64 = await ExpoCrypto.digestStringAsync(
-          ExpoCrypto.CryptoDigestAlgorithm.SHA256,
-          sdJwtBase,
-          { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
-        );
-        const sdHash = sdHashB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-        const kbHeaderObj: Record<string, string> = { typ: 'kb+jwt', alg: 'EdDSA' };
-        if (holderDid) kbHeaderObj.kid = `${holderDid}#${holderDid.split(':').pop()}`;
-        const h64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(kbHeaderObj)));
-        const p64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify({ iat: Math.floor(Date.now() / 1000), aud, nonce, sd_hash: sdHash })));
-        const { signature } = await kms.sign({ keyId: holderKeyId, algorithm: 'EdDSA', data: TypedArrayEncoder.fromString(`${h64}.${p64}`) });
-        presentation = `${sdJwtBase}${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`;
-        console.log('[oid4vp] DCQL KB-JWT built for:', credId, '| aud:', aud.slice(0, 60));
+        presentation = await buildKbJwt(kms, holderKeyId, holderDid, sdJwtBase, aud, nonce);
+        log('[oid4vp] DCQL KB-JWT built for:', credId, '| aud:', aud.slice(0, 60));
       } catch (e) {
         console.warn('[oid4vp] DCQL KB-JWT failed, sending without:', e);
       }
@@ -310,8 +301,8 @@ async function postDcqlPresentation(
   const body = new URLSearchParams({ vp_token: vpToken });
   if (state) body.set('state', state);
 
-  console.log('[oid4vp] DCQL POST →', responseUri.slice(0, 80));
-  const resp = await fetch(responseUri, {
+  log('[oid4vp] DCQL POST →', responseUri.slice(0, 80));
+  const resp = await fetchWithTimeout(responseUri, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -320,7 +311,7 @@ async function postDcqlPresentation(
   if (!resp.ok) {
     throw new Error(`Error al presentar credencial DCQL (${resp.status}): ${respText.slice(0, 300)}`);
   }
-  console.log('[oid4vp] DCQL presentation accepted:', resp.status);
+  log('[oid4vp] DCQL presentation accepted:', resp.status);
 }
 
 // ── SD-JWT direct presentation ────────────────────────────────────────────────
@@ -363,25 +354,9 @@ async function postSdJwtPresentation(
 
     if (item.holderKeyId && item.holderDid) {
       try {
-        const kid = `${item.holderDid}#${item.holderDid.split(':').pop()}`;
-        const sdHashB64 = await ExpoCrypto.digestStringAsync(
-          ExpoCrypto.CryptoDigestAlgorithm.SHA256,
-          sdJwtBase,
-          { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
-        );
-        const sdHash = sdHashB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-        const kbHeader = { typ: 'kb+jwt', alg: 'EdDSA', kid };
-        const kbPayload = { iat: Math.floor(Date.now() / 1000), aud, nonce, sd_hash: sdHash };
-        const h64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(kbHeader)));
-        const p64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(kbPayload)));
-        const { signature } = await kms.sign({
-          keyId: item.holderKeyId,
-          algorithm: 'EdDSA',
-          data: TypedArrayEncoder.fromString(`${h64}.${p64}`),
-        });
-        const kbJwt = `${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`;
-        console.log('[oid4vp] KB-JWT built for:', item.descriptorId);
-        return `${sdJwtBase}${kbJwt}`;
+        const presentation = await buildKbJwt(kms, item.holderKeyId, item.holderDid, sdJwtBase, aud, nonce);
+        log('[oid4vp] KB-JWT built for:', item.descriptorId);
+        return presentation;
       } catch (e) {
         console.warn('[oid4vp] KB-JWT build failed, sending without KB-JWT:', e);
       }
@@ -403,7 +378,7 @@ async function postSdJwtPresentation(
     })),
   };
 
-  console.log('[oid4vp] SD-JWT POST →', responseUri.slice(0, 80), 'format:', items[0].pdFormat);
+  log('[oid4vp] SD-JWT POST →', responseUri.slice(0, 80), 'format:', items[0].pdFormat);
   await postToResponseUri(responseUri, vpToken, submission, state);
 }
 
@@ -449,7 +424,7 @@ async function postJwtVpPresentation(
     const { keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm: 'EdDSA' });
     signingKeyId = keyId;
     vpIss = first?.holderDid ?? 'did:key:anonymous';
-    console.log('[oid4vp] no holderKeyId — using ephemeral key for VP signing');
+    log('[oid4vp] no holderKeyId — using ephemeral key for VP signing');
   }
 
   const vpPayload: Record<string, unknown> = {
@@ -491,7 +466,7 @@ async function postJwtVpPresentation(
     })),
   };
 
-  console.log('[oid4vp] JWT VP POST →', responseUri.slice(0, 80));
+  log('[oid4vp] JWT VP POST →', responseUri.slice(0, 80));
   await postToResponseUri(responseUri, vpToken, submission, state);
 }
 
@@ -507,7 +482,7 @@ async function postToResponseUri(
   });
   if (state) body.set('state', state);
 
-  const resp = await fetch(responseUri, {
+  const resp = await fetchWithTimeout(responseUri, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
@@ -516,10 +491,64 @@ async function postToResponseUri(
     const text = await resp.text().catch(() => '');
     throw new Error(`Error al presentar credencial (${resp.status}): ${text.slice(0, 300)}`);
   }
-  console.log('[oid4vp] presentation accepted:', resp.status);
+  log('[oid4vp] presentation accepted:', resp.status);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Decodes the payload of a compact JWT/SD-JWT without signature verification. */
+function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
+  try {
+    const part = jwt.split('.')[1];
+    if (!part) return null;
+    return JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds a KB-JWT and appends it to sdJwtBase, returning the full presentation token.
+ * Throws if signing fails — callers should catch and send without KB-JWT if desired.
+ */
+async function buildKbJwt(
+  kms: Kms.KeyManagementApi,
+  holderKeyId: string,
+  holderDid: string | undefined,
+  sdJwtBase: string,
+  aud: string,
+  nonce: string,
+): Promise<string> {
+  const sdHashB64 = await ExpoCrypto.digestStringAsync(
+    ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+    sdJwtBase,
+    { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
+  );
+  const sdHash = sdHashB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const kbHeader: Record<string, string> = { typ: 'kb+jwt', alg: 'EdDSA' };
+  if (holderDid) kbHeader.kid = `${holderDid}#${holderDid.split(':').pop()}`;
+  const h64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(kbHeader)));
+  const p64 = TypedArrayEncoder.toBase64URL(
+    TypedArrayEncoder.fromString(JSON.stringify({ iat: Math.floor(Date.now() / 1000), aud, nonce, sd_hash: sdHash })),
+  );
+  const { signature } = await kms.sign({
+    keyId: holderKeyId,
+    algorithm: 'EdDSA',
+    data: TypedArrayEncoder.fromString(`${h64}.${p64}`),
+  });
+  return `${sdJwtBase}${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`;
+}
+
+/** fetch() con timeout fijo. Lanza AbortError si el servidor no responde a tiempo. */
+async function fetchWithTimeout(url: string, opts: RequestInit, ms = 30_000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function extractDescriptorFormat(descriptor: Record<string, unknown>): string {
   const fmt = descriptor.format as Record<string, unknown> | undefined;
@@ -555,5 +584,7 @@ function matchesType(
 }
 
 function genId(): string {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return TypedArrayEncoder.toBase64URL(bytes);
 }

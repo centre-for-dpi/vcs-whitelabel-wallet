@@ -22,13 +22,20 @@ export async function loadHistory(): Promise<PresentationRecord[]> {
   }
 }
 
-export async function addPresentation(entry: Omit<PresentationRecord, 'id'>): Promise<void> {
+// Serializes concurrent writes so the file is never partially overwritten.
+let _writeLock = Promise.resolve();
+
+export function addPresentation(entry: Omit<PresentationRecord, 'id'>): Promise<void> {
+  _writeLock = _writeLock.then(() => _addPresentation(entry));
+  return _writeLock;
+}
+
+async function _addPresentation(entry: Omit<PresentationRecord, 'id'>): Promise<void> {
   const history = await loadHistory();
-  const record: PresentationRecord = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    ...entry,
-  };
-  history.unshift(record);
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const id = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  history.unshift({ id, ...entry });
   await FileSystem.writeAsStringAsync(HISTORY_FILE, JSON.stringify(history));
 }
 
