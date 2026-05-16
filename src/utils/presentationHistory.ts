@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const HISTORY_FILE = `${FileSystem.documentDirectory}presentation_history.json`;
 

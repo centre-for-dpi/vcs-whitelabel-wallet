@@ -21,6 +21,7 @@ import { storeOid4VciCredential, formatConfigId } from '../src/agent/oid4vci/sto
 const PRE_AUTH_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
 
 async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<string, unknown>> {
+  console.log('[receive] resolveHttpCredentialOffer — offer URI:', offerUri);
   const offerResp = await fetch(offerUri);
   if (!offerResp.ok) {
     if (offerResp.status === 404 || offerResp.status === 410) {
@@ -33,7 +34,9 @@ async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<stri
   const issuerUrl = (offerPayload.credential_issuer as string | undefined)?.replace(/\/$/, '');
   if (!issuerUrl) throw new Error('credential_issuer missing from offer payload');
 
+  console.log('[receive] resolveHttpCredentialOffer — credential_issuer:', issuerUrl);
   const wellKnownResp = await fetch(`${issuerUrl}/.well-known/openid-credential-issuer`);
+  console.log('[receive] resolveHttpCredentialOffer — well-known status:', wellKnownResp.status);
   if (!wellKnownResp.ok) throw new Error(`Failed to fetch issuer metadata (${wellKnownResp.status})`);
   const issuerMeta = await wellKnownResp.json() as Record<string, unknown>;
 
@@ -96,9 +99,23 @@ export default function Receive() {
       const offerUri = decodeURIComponent(offerUriParam);
       const isHttpOffer = !branding.requireHttps && offerUri.startsWith('http://');
 
-      const rawOffer = isHttpOffer
-        ? await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer
-        : await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
+      let rawOffer: OpenId4VciResolvedCredentialOffer;
+      if (isHttpOffer) {
+        rawOffer = await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer;
+      } else {
+        try {
+          rawOffer = await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
+        } catch (e) {
+          // The offer_uri may be HTTPS but the returned payload contains an
+          // http:// credential_issuer that Credo rejects. Fall back to the
+          // manual resolver (which skips the https constraint) when allowed.
+          if (!branding.requireHttps && e instanceof Error && e.message.includes('Url must be an https://')) {
+            rawOffer = await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer;
+          } else {
+            throw e;
+          }
+        }
+      }
 
       const offer = normalizeOffer(rawOffer);
       setNormalizedOffer(offer);
