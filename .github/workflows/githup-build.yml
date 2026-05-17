@@ -1,0 +1,62 @@
+name: Compilar iOS (React Native)
+
+on:
+  push:
+    branches:
+      - main # O 'master' si es el caso
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias de JavaScript
+        run: npm install
+
+      - name: Generar carpeta iOS nativa (Expo Prebuild)
+        run: npx expo prebuild --platform ios
+
+      - name: Configurar Ruby (Requerido para CocoaPods)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Instalar CocoaPods
+        run: |
+          cd ios
+          pod install
+          cd ..
+
+      - name: Compilar Aplicación (.app / .ipa)
+        run: |
+          xcodebuild -workspace ios/*.xcworkspace \
+                     -scheme $(ls ios/*.xcworkspace | xargs basename -s .xcworkspace) \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     clean build
+
+      - name: Empaquetar en formato .ipa
+        run: |
+          mkdir -p build/Payload
+          mv ios/build/Build/Products/Release-iphoneos/*.app build/Payload/
+          cd build
+          zip -r cdpi-wallet.ipa Payload
+          
+      - name: Subir archivo final a GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-ios-release
+          path: build/cdpi-wallet.ipa
