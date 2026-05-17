@@ -53,7 +53,6 @@ jobs:
 
       - name: Compilar Aplicación
         run: |
-          # .xcworkspace es un directorio (paquete), no un archivo — usar find -type d
           WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
@@ -63,15 +62,14 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath ios/DerivedData \
+            -archivePath ios/DerivedData/CDPIWallet.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            clean build
+            archive
 
       - name: Empaquetar en formato .ipa
         run: |
-          APP=$(find ios/DerivedData/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
+          APP=$(find ios/DerivedData/CDPIWallet.xcarchive/Products -name "*.app" | head -1)
           echo "App encontrada: $APP"
           mkdir -p build/Payload
           cp -r "$APP" build/Payload/
