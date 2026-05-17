@@ -36,6 +36,14 @@ jobs:
         with:
           ruby-version: '3.2'
 
+      # Cache de CocoaPods: evita re-descargar specs en cada build
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: pods-${{ hashFiles('package-lock.json') }}
+          restore-keys: pods-
+
       - name: Instalar CocoaPods
         run: |
           gem install cocoapods --no-document
@@ -43,7 +51,8 @@ jobs:
 
       - name: Compilar Aplicación
         run: |
-          WORKSPACE=$(ls ios/*.xcworkspace | head -1)
+          # .xcworkspace es un directorio (paquete), no un archivo — usar find -type d
+          WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
 
