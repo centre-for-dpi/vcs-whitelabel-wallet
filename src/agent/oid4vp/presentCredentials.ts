@@ -246,9 +246,14 @@ async function postDcqlPresentation(
   const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string;
   const nonce = reqPayload.nonce as string;
   const state = reqPayload.state as string | undefined;
-  const aud = ((reqPayload.client_id ?? responseUri) as string).replace(/^decentralized_identifier:/, '');
+  // Use the raw client_id from the JAR as aud — Credo does the same via effectiveClientId.
+  // CREDEBL's verifier expects the full value including any scheme prefix (e.g. "decentralized_identifier:did:key:...").
+  const aud = (reqPayload.client_id ?? responseUri) as string;
   const dcqlQuery = (reqPayload.dcql_query ?? (r.dcql as Record<string, unknown> | undefined)?.dcqlQuery) as Record<string, unknown> | undefined;
   const credQueries = (dcqlQuery?.credentials as Array<Record<string, unknown>>) ?? [];
+
+  log('[oid4vp] DCQL request — response_mode:', reqPayload.response_mode, '| nonce present:', !!reqPayload.nonce, '| nonce:', String(reqPayload.nonce).slice(0, 20));
+  log('[oid4vp] DCQL raw client_id:', reqPayload.client_id, '| client_id_scheme:', reqPayload.client_id_scheme);
 
   const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
   const allSdJwt = await agent.sdJwtVc.getAll();
@@ -274,6 +279,13 @@ async function postDcqlPresentation(
     const credVct = (record.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
     log('[oid4vp] DCQL', credId, '— vct_values:', vctValues, '| credential vct:', credVct);
 
+    // Log the issuer JWT header so we can confirm typ (vc+sd-jwt vs dc+sd-jwt) and alg.
+    try {
+      const issuerHdrB64 = compact.split('~')[0].split('.')[0] ?? '';
+      const issuerHdr = JSON.parse(atob(issuerHdrB64.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+      log('[oid4vp] DCQL', credId, '— issuer JWT hdr typ:', issuerHdr.typ, '| alg:', issuerHdr.alg, '| kid prefix:', String(issuerHdr.kid).slice(0, 20));
+    } catch { /* ignore */ }
+
     const compact = record.firstCredential.compact;
     const tags = record.getTags() as Record<string, unknown>;
     const tagHolderKeyId = tags.holderKeyId as string | undefined;
@@ -289,16 +301,53 @@ async function postDcqlPresentation(
       hasCnf = !!cnf;
     }
 
-    // Derive the signing key ID from cnf.jwk (JWK thumbprint per RFC 7638 — this is the
-    // Askar key ID). The tag holderKeyId may reference a stale or different key, but the
-    // JWK thumbprint is deterministic from the public key that the verifier will check against.
+    // Prefer the Askar UUID stored in the tag (the key that CAN sign).
+    // Fall back to the JWK thumbprint only when no tag exists, since Credo's Askar
+    // backend stores keys by UUID, not by JWK thumbprint.
     let holderKeyId = tagHolderKeyId;
-    if (cnfJwk) {
-      try {
-        holderKeyId = await jwkThumbprint(cnfJwk);
-      } catch { /* fall back to tag value */ }
+    if (!holderKeyId && cnfJwk) {
+      try { holderKeyId = await jwkThumbprint(cnfJwk); } catch { /* ignore */ }
     }
-    log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| tagKeyId:', tagHolderKeyId?.slice(0, 20), '| derivedKeyId:', holderKeyId?.slice(0, 20), '| holderDid:', holderDid?.slice(0, 50));
+    const thumbprint = cnfJwk ? await jwkThumbprint(cnfJwk).catch(() => '?') : '?';
+    const holderAlg = jwkAlgorithm(cnfJwk);
+    const cnfKid = (dcqlPayload?.cnf as Record<string, unknown> | undefined)?.kid as string | undefined;
+    const cnfX = (cnfJwk?.x as string | undefined) ?? (cnfJwk?.y as string | undefined) ?? '?';
+    log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| tagKeyId:', tagHolderKeyId?.slice(0, 20), '| thumbprint:', thumbprint.slice(0, 20), '| cnf kty:', cnfJwk?.kty, 'crv:', cnfJwk?.crv, '→ alg:', holderAlg, '| cnf.x[0..20]:', cnfX.slice(0, 20));
+
+    // Key match test: sign test data with the UUID key, then verify with cnf.jwk.
+    // If valid=true the UUID key IS the holder key → KB-JWT signatures will verify.
+    // If false/error the credential's holder binding is broken and must be re-issued.
+    if (tagHolderKeyId && cnfJwk) {
+      try {
+        const testBytes = TypedArrayEncoder.fromString('key-match-test');
+        const { signature: testSig } = await kms.sign({
+          keyId: tagHolderKeyId, algorithm: holderAlg, data: testBytes,
+        });
+        let matchResult: unknown;
+        try {
+          // kms.verify: { key: { publicJwk: <plain JWK> }, algorithm, data, signature }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          matchResult = await kms.verify({ key: { publicJwk: cnfJwk }, algorithm: holderAlg, data: testBytes, signature: testSig } as any);
+        } catch (ve) { matchResult = `verify-err: ${String(ve).slice(0, 80)}`; }
+        log('[oid4vp] KEY MATCH (sign UUID, verify cnfJwk):', JSON.stringify(matchResult));
+      } catch (e) {
+        log('[oid4vp] KEY MATCH sign error:', String(e).slice(0, 100));
+      }
+    }
+
+    // Check credential expiry — an expired credential is rejected by the verifier
+    // with "presentations failed verification", which looks identical to a KB-JWT failure.
+    const issuerPayload = decodeJwtPayload(compact.split('~')[0]);
+    const exp = issuerPayload?.exp as number | undefined;
+    const iat = issuerPayload?.iat as number | undefined;
+    const nbf = issuerPayload?.nbf as number | undefined;
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const isExpired = exp !== undefined && exp < nowSecs;
+    const notYetValid = nbf !== undefined && nbf > nowSecs;
+    log('[oid4vp] DCQL', credId, '— iat:', iat, '| exp:', exp, '| now:', nowSecs, '| expired:', isExpired, '| notYetValid:', notYetValid);
+    if (isExpired) {
+      throw new Error(`Credential '${credId}' has expired (exp=${exp}, now=${nowSecs}). Please re-issue the credential.`);
+    }
 
     // Selective disclosure for requested claims
     const claimPaths = ((cq.claims as Array<Record<string, unknown>>) ?? [])
@@ -331,8 +380,19 @@ async function postDcqlPresentation(
     // Sending KB-JWT for a credential without cnf causes CREDEBL to reject the presentation.
     if (holderKeyId && hasCnf) {
       try {
-        presentation = await buildKbJwt(kms, holderKeyId, holderDid, sdJwtBase, aud, nonce);
-        log('[oid4vp] DCQL KB-JWT built for:', credId, '| aud:', aud.slice(0, 60));
+        presentation = await buildKbJwt(kms, holderKeyId, holderDid, sdJwtBase, aud, nonce, holderAlg);
+        log('[oid4vp] DCQL KB-JWT built for:', credId, '| alg:', holderAlg, '| aud:', aud.slice(0, 60));
+        // Decode and log the KB-JWT payload so we can verify aud/nonce/sd_hash are correct.
+        try {
+          const kbStr = presentation.split('~').pop() ?? '';
+          const kbParts = kbStr.split('.');
+          if (kbParts.length >= 2) {
+            const kbHdr = JSON.parse(atob((kbParts[0] ?? '').replace(/-/g, '+').replace(/_/g, '/')));
+            const kbPld = JSON.parse(atob((kbParts[1] ?? '').replace(/-/g, '+').replace(/_/g, '/')));
+            log('[oid4vp] KB-JWT hdr:', JSON.stringify(kbHdr));
+            log('[oid4vp] KB-JWT pld — aud:', kbPld.aud, '| nonce:', kbPld.nonce, '| sd_hash[0..20]:', String(kbPld.sd_hash).slice(0, 20));
+          }
+        } catch { /* ignore */ }
       } catch (e) {
         console.warn('[oid4vp] DCQL KB-JWT failed, sending without:', e);
       }
@@ -342,6 +402,8 @@ async function postDcqlPresentation(
 
   // vp_token is a JSON object keyed by credential query id — values are plain strings (not arrays).
   const vpToken = JSON.stringify(presentations);
+
+  log('[oid4vp] DCQL vpToken (first 120):', vpToken.slice(0, 120));
 
   const body = new URLSearchParams({ vp_token: vpToken });
   if (state) body.set('state', state);
@@ -567,6 +629,7 @@ async function buildKbJwt(
   sdJwtBase: string,
   aud: string,
   nonce: string,
+  algorithm = 'EdDSA',
 ): Promise<string> {
   const sdHashB64 = await ExpoCrypto.digestStringAsync(
     ExpoCrypto.CryptoDigestAlgorithm.SHA256,
@@ -574,7 +637,7 @@ async function buildKbJwt(
     { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
   );
   const sdHash = sdHashB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-  const kbHeader: Record<string, string> = { typ: 'kb+jwt', alg: 'EdDSA' };
+  const kbHeader: Record<string, string> = { typ: 'kb+jwt', alg: algorithm };
   if (holderDid) kbHeader.kid = `${holderDid}#${holderDid.split(':').pop()}`;
   const h64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(kbHeader)));
   const p64 = TypedArrayEncoder.toBase64URL(
@@ -582,7 +645,7 @@ async function buildKbJwt(
   );
   const { signature } = await kms.sign({
     keyId: holderKeyId,
-    algorithm: 'EdDSA',
+    algorithm,
     data: TypedArrayEncoder.fromString(`${h64}.${p64}`),
   });
   return `${sdJwtBase}${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`;
@@ -636,6 +699,19 @@ function genId(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
   return TypedArrayEncoder.toBase64URL(bytes);
+}
+
+/** Maps a public JWK to the JWT signature algorithm it requires for key binding. */
+function jwkAlgorithm(jwk: Record<string, unknown> | undefined): string {
+  if (!jwk) return 'EdDSA';
+  const kty = jwk.kty as string;
+  if (kty === 'EC') {
+    const crv = jwk.crv as string;
+    if (crv === 'P-384') return 'ES384';
+    if (crv === 'P-521') return 'ES512';
+    return 'ES256'; // P-256 default
+  }
+  return 'EdDSA'; // OKP / Ed25519
 }
 
 /**
