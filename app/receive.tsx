@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
-import { branding } from '../branding.config';
+import { branding, trustRegistry } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
 import i18n from '../src/i18n';
+import { checkTrust, TRUST_COLORS, TRUST_ICONS, type TrustStatus } from '../src/agent/trust';
 import { normalizeOffer } from '../src/agent/oid4vci/normalizeOffer';
 import { requestOid4VciCredentials } from '../src/agent/oid4vci/requestCredentials';
 import { storeOid4VciCredential, formatConfigId } from '../src/agent/oid4vci/storeCredential';
@@ -77,6 +78,7 @@ export default function Receive() {
   const [normalizedOffer, setNormalizedOffer] = useState<Record<string, unknown> | null>(null);
   const [txCode, setTxCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [issuerTrust, setIssuerTrust] = useState<TrustStatus>('unknown');
 
   useEffect(() => {
     if (!url || agentState.status !== 'ready') return;
@@ -149,6 +151,11 @@ export default function Receive() {
 
       const preAuthGrant = (rawOffer.credentialOfferPayload?.grants as Record<string, unknown> | undefined)?.[PRE_AUTH_GRANT] as Record<string, unknown> | undefined;
       const txCodeInfo = preAuthGrant?.tx_code as Record<string, unknown> | undefined;
+
+      const rawIssuerUrl =
+        (credentialIssuer?.credential_issuer as string | undefined) ??
+        (rawOffer.credentialOfferPayload?.credential_issuer as string | undefined) ?? '';
+      setIssuerTrust(checkTrust(rawIssuerUrl, trustRegistry));
 
       setOfferInfo({
         issuer: issuerName,
@@ -237,7 +244,14 @@ export default function Receive() {
         <>
           <View style={styles.card}>
             <Text style={styles.label}>{t('receive.label_issuer')}</Text>
-            <Text style={styles.value}>{offerInfo.issuer}</Text>
+            <View style={styles.trustRow}>
+              <Text style={styles.value}>{offerInfo.issuer}</Text>
+              <View style={[styles.trustBadge, { backgroundColor: TRUST_COLORS[issuerTrust] + '1A', borderColor: TRUST_COLORS[issuerTrust] }]}>
+                <Text style={[styles.trustBadgeText, { color: TRUST_COLORS[issuerTrust] }]}>
+                  {TRUST_ICONS[issuerTrust]} {t(`trust.${issuerTrust}`)}
+                </Text>
+              </View>
+            </View>
             <Text style={[styles.label, { marginTop: 16 }]}>{t('receive.label_offered')}</Text>
             {offerInfo.credentials.map((name, i) => (
               <View key={i} style={styles.credRow}>
@@ -323,7 +337,10 @@ const styles = StyleSheet.create({
   statusText: { marginTop: 16, fontSize: 15, color: '#6B7280' },
   card: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 20, marginBottom: 16 },
   label: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  value: { fontSize: 15, color: '#111827' },
+  trustRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  trustBadge: { flexDirection: 'row', alignItems: 'center', borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  trustBadgeText: { fontSize: 12, fontWeight: '600' },
+  value: { fontSize: 15, color: '#111827', flex: 1 },
   credRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 4 },
   credName: { fontSize: 15, color: '#111827' },
   txCodeBox: { backgroundColor: '#FFFBEB', borderRadius: 10, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FDE68A' },

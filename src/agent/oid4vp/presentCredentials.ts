@@ -3,6 +3,7 @@ import * as ExpoCrypto from 'expo-crypto';
 import type { WalletAgent } from '../setup';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
 import { selectCredentialsForRequest } from './selectCredentials';
+import { checkRevocationStatus } from '../revocation';
 import i18n from '../../i18n';
 
 /* eslint-disable no-console */
@@ -35,6 +36,7 @@ type MatchedItem = {
 export async function presentCredentials(
   agent: WalletAgent,
   resolved: OpenId4VpResolvedAuthorizationRequest,
+  excludedFields?: Set<string>,
 ): Promise<void> {
   const r = resolved as unknown as Record<string, unknown>;
   const reqPayload = r.authorizationRequestPayload as Record<string, unknown>;
@@ -42,7 +44,7 @@ export async function presentCredentials(
 
   // Credo enforces HTTPS at multiple layers — route HTTP issuers to the manual bypass.
   if (responseUri?.startsWith('http://')) {
-    await presentCredentialsHttp(agent, resolved);
+    await presentCredentialsHttp(agent, resolved, excludedFields);
     return;
   }
 
@@ -53,18 +55,23 @@ export async function presentCredentials(
   const descriptors = (definition?.input_descriptors as Array<Record<string, unknown>>) ?? [];
   const nonce = reqPayload.nonce as string | undefined;
   const state = reqPayload.state as string | undefined;
-  const aud = (reqPayload.client_id ?? responseUri) as string;
+  const aud = ((reqPayload.client_id ?? responseUri) as string).replace(/^decentralized_identifier:/, '');
 
   if (pex && descriptors.length > 0 && responseUri && nonce) {
     const matched = await buildMatchedItems(agent, descriptors);
+    await assertNotRevoked(matched);
 
     if (matched.every((m) => m.isConformant)) {
       const built: Record<string, Array<{ claimFormat: ClaimFormat; credentialRecord: SdJwtVcRecord; disclosedPayload: Record<string, unknown> }>> = {};
       for (const m of matched) {
+        const rawPayload = m.record.firstCredential.prettyClaims as Record<string, unknown>;
+        const disclosedPayload = excludedFields
+          ? Object.fromEntries(Object.entries(rawPayload).filter(([k]) => !excludedFields.has(k)))
+          : rawPayload;
         built[m.descriptorId] = [{
           claimFormat: ClaimFormat.SdJwtDc,
           credentialRecord: m.record,
-          disclosedPayload: m.record.firstCredential.prettyClaims as Record<string, unknown>,
+          disclosedPayload,
         }];
       }
       try {
@@ -91,6 +98,7 @@ export async function presentCredentials(
           state,
           aud,
           agent,
+          excludedFields,
         );
         return;
       }
@@ -101,7 +109,7 @@ export async function presentCredentials(
     const jwtVcItems = matched.filter((m) => !m.isConformant && !m.hasDisclosures);
 
     if (sdJwtItems.length > 0 && jwtVcItems.length === 0) {
-      await postSdJwtPresentation(sdJwtItems, descriptors, definition!, responseUri, nonce, state, aud, agent);
+      await postSdJwtPresentation(sdJwtItems, descriptors, definition!, responseUri, nonce, state, aud, agent, excludedFields);
       return;
     }
     if (jwtVcItems.length > 0 && sdJwtItems.length === 0) {
@@ -113,11 +121,21 @@ export async function presentCredentials(
 
   // DCQL or no PEX descriptors — Credo handles
   const selected = await selectCredentialsForRequest(agent, resolved);
-  await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
-    authorizationRequestPayload: resolved.authorizationRequestPayload,
-    ...(selected.presentationExchange ? { presentationExchange: selected.presentationExchange } : {}),
-    ...(selected.dcql ? { dcql: selected.dcql } : {}),
-  });
+  try {
+    await agent.modules.openid4vc.holder.acceptOpenId4VpAuthorizationRequest({
+      authorizationRequestPayload: resolved.authorizationRequestPayload,
+      ...(selected.presentationExchange ? { presentationExchange: selected.presentationExchange } : {}),
+      ...(selected.dcql ? { dcql: selected.dcql } : {}),
+    });
+  } catch (e) {
+    const isKeyMissing = e instanceof Error && (
+      e.name === 'KeyManagementKeyNotFoundError' ||
+      e.message.includes('not found in backend')
+    );
+    if (!isKeyMissing) throw e;
+    console.warn('[oid4vp] holder key missing from Askar on DCQL path, falling back to manual posting');
+    await postDcqlPresentation(agent, resolved);
+  }
 }
 
 // ── HTTP bypass (dev environments only) ───────────────────────────────────────
@@ -128,13 +146,14 @@ export async function presentCredentials(
 async function presentCredentialsHttp(
   agent: WalletAgent,
   resolved: OpenId4VpResolvedAuthorizationRequest,
+  excludedFields?: Set<string>,
 ): Promise<void> {
   const r = resolved as unknown as Record<string, unknown>;
   const reqPayload = r.authorizationRequestPayload as Record<string, unknown>;
   const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string;
   const nonce = reqPayload.nonce as string;
   const state = reqPayload.state as string | undefined;
-  const aud = (reqPayload.client_id ?? responseUri) as string;
+  const aud = ((reqPayload.client_id ?? responseUri) as string).replace(/^decentralized_identifier:/, '');
 
   const pex = r.presentationExchange as Record<string, unknown> | undefined;
   const definition = pex?.definition as Record<string, unknown> | undefined;
@@ -142,11 +161,12 @@ async function presentCredentialsHttp(
 
   if (pex && descriptors.length > 0) {
     const matched = await buildMatchedItems(agent, descriptors);
+    await assertNotRevoked(matched);
     const sdJwtItems = matched.filter((m) => m.hasDisclosures);
     const jwtVcItems = matched.filter((m) => !m.hasDisclosures);
 
     if (sdJwtItems.length > 0 && jwtVcItems.length === 0) {
-      await postSdJwtPresentation(sdJwtItems, descriptors, definition!, responseUri, nonce, state, aud, agent);
+      await postSdJwtPresentation(sdJwtItems, descriptors, definition!, responseUri, nonce, state, aud, agent, excludedFields);
     } else if (jwtVcItems.length > 0 && sdJwtItems.length === 0) {
       await postJwtVpPresentation(agent, jwtVcItems, definition!, responseUri, nonce, state, aud);
     } else {
@@ -157,6 +177,18 @@ async function presentCredentialsHttp(
 
   // DCQL
   await postDcqlPresentation(agent, resolved);
+}
+
+// ── Revocation guard ──────────────────────────────────────────────────────────
+
+async function assertNotRevoked(items: MatchedItem[]): Promise<void> {
+  for (const item of items) {
+    const status = await checkRevocationStatus(item.compact);
+    log('[oid4vp] revocation status for', item.descriptorId, '→', status);
+    if (status === 'revoked') {
+      throw new Error(i18n.t('present.credential_revoked', { id: item.descriptorId }));
+    }
+  }
 }
 
 // ── Credential matching ───────────────────────────────────────────────────────
@@ -214,7 +246,7 @@ async function postDcqlPresentation(
   const responseUri = (reqPayload.response_uri ?? reqPayload.redirect_uri) as string;
   const nonce = reqPayload.nonce as string;
   const state = reqPayload.state as string | undefined;
-  const aud = (reqPayload.client_id ?? responseUri) as string;
+  const aud = ((reqPayload.client_id ?? responseUri) as string).replace(/^decentralized_identifier:/, '');
   const dcqlQuery = (reqPayload.dcql_query ?? (r.dcql as Record<string, unknown> | undefined)?.dcqlQuery) as Record<string, unknown> | undefined;
   const credQueries = (dcqlQuery?.credentials as Array<Record<string, unknown>>) ?? [];
 
@@ -244,16 +276,29 @@ async function postDcqlPresentation(
 
     const compact = record.firstCredential.compact;
     const tags = record.getTags() as Record<string, unknown>;
-    const holderKeyId = tags.holderKeyId as string | undefined;
+    const tagHolderKeyId = tags.holderKeyId as string | undefined;
     let holderDid: string | undefined;
     let hasCnf = false;
+    let cnfJwk: Record<string, unknown> | undefined;
     const dcqlPayload = decodeJwtPayload(compact.split('~')[0]);
     if (dcqlPayload) {
+      const cnf = dcqlPayload.cnf as Record<string, unknown> | undefined;
+      cnfJwk = cnf?.jwk as Record<string, unknown> | undefined;
       holderDid = (dcqlPayload.sub as string | undefined)
-        ?? ((dcqlPayload.cnf as Record<string, string> | undefined)?.kid?.split('#')[0]);
-      hasCnf = !!dcqlPayload.cnf;
+        ?? ((cnf as Record<string, string> | undefined)?.kid?.split('#')[0]);
+      hasCnf = !!cnf;
     }
-    log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| holderKeyId:', !!holderKeyId);
+
+    // Derive the signing key ID from cnf.jwk (JWK thumbprint per RFC 7638 — this is the
+    // Askar key ID). The tag holderKeyId may reference a stale or different key, but the
+    // JWK thumbprint is deterministic from the public key that the verifier will check against.
+    let holderKeyId = tagHolderKeyId;
+    if (cnfJwk) {
+      try {
+        holderKeyId = await jwkThumbprint(cnfJwk);
+      } catch { /* fall back to tag value */ }
+    }
+    log('[oid4vp] DCQL', credId, '— hasCnf:', hasCnf, '| tagKeyId:', tagHolderKeyId?.slice(0, 20), '| derivedKeyId:', holderKeyId?.slice(0, 20), '| holderDid:', holderDid?.slice(0, 50));
 
     // Selective disclosure for requested claims
     const claimPaths = ((cq.claims as Array<Record<string, unknown>>) ?? [])
@@ -325,6 +370,7 @@ async function postSdJwtPresentation(
   state: string | undefined,
   aud: string,
   agent: WalletAgent,
+  excludedFields?: Set<string>,
 ): Promise<void> {
   const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
 
@@ -346,8 +392,11 @@ async function postSdJwtPresentation(
 
     const descriptor = allDescriptors.find((d) => d.id === item.descriptorId);
     const requestedNames = extractRequestedClaimNames(descriptor);
-    const selectedDisclosures = requestedNames.length > 0
-      ? decoded.filter((d) => requestedNames.includes(d.name)).map((d) => d.raw)
+    const filteredNames = excludedFields && requestedNames.length > 0
+      ? requestedNames.filter((n) => !excludedFields.has(n))
+      : requestedNames;
+    const selectedDisclosures = filteredNames.length > 0
+      ? decoded.filter((d) => filteredNames.includes(d.name)).map((d) => d.raw)
       : decoded.map((d) => d.raw);
 
     const sdJwtBase = [jwtPart, ...selectedDisclosures, ''].join('~');
@@ -587,4 +636,27 @@ function genId(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
   return TypedArrayEncoder.toBase64URL(bytes);
+}
+
+/**
+ * Computes the RFC 7638 JWK Thumbprint for a public JWK.
+ * In Credo's Askar backend this value IS the stored key ID, so using it
+ * for lookup guarantees we sign with the key that matches cnf.jwk.
+ */
+async function jwkThumbprint(jwk: Record<string, unknown>): Promise<string> {
+  let canonical: string;
+  const kty = jwk.kty as string;
+  if (kty === 'OKP') {
+    canonical = JSON.stringify({ crv: jwk.crv, kty, x: jwk.x });
+  } else if (kty === 'EC') {
+    canonical = JSON.stringify({ crv: jwk.crv, kty, x: jwk.x, y: jwk.y });
+  } else {
+    canonical = JSON.stringify({ e: jwk.e, kty, n: jwk.n });
+  }
+  const b64 = await ExpoCrypto.digestStringAsync(
+    ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+    canonical,
+    { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
+  );
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }

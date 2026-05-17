@@ -1,7 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 import type { CredentialEntry } from '../utils/credential';
+import { getExpiryStatus, daysUntilExpiry } from '../utils/credential';
 
 type Props = {
   entry: CredentialEntry;
@@ -9,17 +11,41 @@ type Props = {
 };
 
 export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
-  const date = new Date(entry.issuanceDate).toLocaleDateString('es', {
+  const { t, i18n } = useTranslation();
+  const status = getExpiryStatus(entry.expiryDate);
+
+  const date = new Date(entry.issuanceDate).toLocaleDateString(i18n.language, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
 
+  const accentColor =
+    status === 'expired' ? '#DC2626' :
+    status === 'expiring' ? '#D97706' :
+    branding.primaryColor;
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
-      <View style={[styles.accent, { backgroundColor: branding.primaryColor }]} />
+      <View style={[styles.accent, { backgroundColor: accentColor }]} />
       <View style={styles.body}>
-        <Text style={[styles.type, { color: branding.textColor }]}>{entry.type}</Text>
+        <View style={styles.topRow}>
+          <Text style={[styles.type, { color: branding.textColor }]} numberOfLines={1}>
+            {entry.type}
+          </Text>
+          {status === 'expired' && (
+            <View style={styles.badgeExpired}>
+              <Text style={styles.badgeText}>{t('credentials.expired_badge')}</Text>
+            </View>
+          )}
+          {status === 'expiring' && entry.expiryDate && (
+            <View style={styles.badgeExpiring}>
+              <Text style={styles.badgeText}>
+                {t('credentials.expiring_badge', { days: daysUntilExpiry(entry.expiryDate) })}
+              </Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.issuer} numberOfLines={1}>{entry.issuer}</Text>
         <Text style={styles.date}>{date}</Text>
       </View>
@@ -47,11 +73,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
   type: {
+    flex: 1,
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 6,
   },
   issuer: {
     fontSize: 13,
@@ -61,5 +93,22 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  badgeExpired: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  badgeExpiring: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#374151',
   },
 });

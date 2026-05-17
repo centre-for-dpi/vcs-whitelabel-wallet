@@ -4,8 +4,11 @@
  * Steps to customize:
  *  1. Change appName, primaryColor, secondaryColor
  *  2. Replace assets/logo.png with your logo (keep the same filename)
- *  3. Run: eas build --platform android --profile production
+ *  3. Add trusted issuers/verifiers to trustRegistry
+ *  4. Run: eas build --platform android --profile production
  */
+
+import type { TrustEntry } from './src/agent/trust';
 
 export const branding = {
   appName: 'CDPI Wallet',
@@ -20,6 +23,17 @@ export const branding = {
   // When true, Credo-TS enforces HTTPS and rejects HTTP issuer URLs.
   requireHttps: false,
 } as const;
+
+/**
+ * Trust Registry — add domains/patterns for issuers and verifiers you trust.
+ * Entries are matched case-insensitively as substrings or regex patterns.
+ * Credentials from unlisted entities are shown with an ⚠ Unknown indicator.
+ */
+export const trustRegistry: TrustEntry[] = [
+  { pattern: 'cdpi\\.dev', name: 'CDPI' },
+  { pattern: 'ysalabs\\.work', name: 'YsaLabs' },
+  { pattern: 'bootcamp\\.cdpi\\.dev', name: 'CDPI Bootcamp' },
+];
 
 // OIDC configuration — edit these values to enable SSO login.
 // Keycloak issuerUrl format: https://{host}/realms/{realm}

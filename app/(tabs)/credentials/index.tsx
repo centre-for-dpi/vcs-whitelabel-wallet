@@ -22,6 +22,8 @@ import {
 } from '../../../src/utils/credential';
 import { getUserFirstName } from '../../../src/utils/storage';
 
+const PAGE_SIZE = 20;
+
 export default function CredentialList() {
   const { t } = useTranslation();
   const agentState = useAgentState();
@@ -29,6 +31,7 @@ export default function CredentialList() {
   const [entries, setEntries] = useState<CredentialEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const load = useCallback(async () => {
     if (agentState.status !== 'ready') return;
@@ -64,7 +67,8 @@ export default function CredentialList() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { setRefreshing(true); setVisibleCount(PAGE_SIZE); load(); };
+  const onEndReached = () => setVisibleCount((c) => Math.min(c + PAGE_SIZE, entries.length));
 
   if (agentState.status !== 'ready' || loading) {
     return (
@@ -97,7 +101,7 @@ export default function CredentialList() {
         </View>
       ) : (
         <FlatList
-          data={entries}
+          data={entries.slice(0, visibleCount)}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
@@ -111,12 +115,19 @@ export default function CredentialList() {
               }
             />
           )}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.3}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor={branding.primaryColor}
             />
+          }
+          ListFooterComponent={
+            visibleCount < entries.length ? (
+              <ActivityIndicator size="small" color={branding.primaryColor} style={{ marginVertical: 16 }} />
+            ) : null
           }
         />
       )}

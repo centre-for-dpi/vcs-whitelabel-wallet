@@ -7,10 +7,31 @@ export type CredentialEntry = {
   type: string;
   issuer: string;
   issuanceDate: string;
+  expiryDate?: string; // ISO string; undefined = no expiry declared
   claims: Record<string, unknown>;
   selectiveFields: string[];
+  /** Subset of selectiveFields that are selectively disclosable (SD-JWT _sd claims). Empty for W3C. */
+  sdFields: string[];
   rawRecord: SdJwtVcRecord | W3cCredentialRecord;
 };
+
+export type ExpiryStatus = 'expired' | 'expiring' | 'valid' | 'none';
+
+/** Returns the credential's expiry status relative to now. */
+export function getExpiryStatus(expiryDate: string | undefined): ExpiryStatus {
+  if (!expiryDate) return 'none';
+  const expMs = new Date(expiryDate).getTime();
+  const now = Date.now();
+  if (expMs <= now) return 'expired';
+  const daysLeft = (expMs - now) / (1000 * 60 * 60 * 24);
+  if (daysLeft <= 30) return 'expiring';
+  return 'valid';
+}
+
+/** Days remaining until expiry (negative if already expired). */
+export function daysUntilExpiry(expiryDate: string): number {
+  return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
 
 export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
   const sdJwtVc = record.firstCredential;
@@ -35,6 +56,11 @@ export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
   // formatIssuerUrl so branding labels and DID handling apply
   const rawIssuerResolved = typeof tags.issuerName === 'string' ? tags.issuerName : rawIssuer;
   const issuer = formatIssuerUrl(rawIssuerResolved);
+
+  const expiryDate =
+    typeof payload.exp === 'number'
+      ? new Date(payload.exp * 1000).toISOString()
+      : undefined;
 
   const reserved = new Set(['iss', 'iat', 'exp', 'nbf', 'sub', 'jti', 'vct', 'cnf', '_sd', '_sd_alg', 'status']);
 
@@ -62,14 +88,23 @@ export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
     (k) => !reserved.has(k) && !w3cMeta.has(k),
   );
 
+  // Claims that are NOT direct keys of the JWT payload are selectively disclosable
+  // (they were hashed in the _sd array and disclosed via the SD-JWT disclosure mechanism).
+  const directPayloadKeys = new Set(
+    Object.keys(payload).filter((k) => k !== '_sd' && k !== '_sd_alg' && !reserved.has(k)),
+  );
+  const sdFields = selectiveFields.filter((k) => !directPayloadKeys.has(k));
+
   return {
     id: record.id,
     format: 'sdjwt',
     type,
     issuer,
     issuanceDate,
+    expiryDate,
     claims: claimsSource,
     selectiveFields,
+    sdFields,
     rawRecord: record,
   };
 };
@@ -134,6 +169,10 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
     ? vc.issuanceDate
     : new Date().toISOString();
 
+  const expiryDate = typeof (vc as Record<string, unknown>).expirationDate === 'string'
+    ? (vc as Record<string, unknown>).expirationDate as string
+    : undefined;
+
   const rawSubject = Array.isArray(vc.credentialSubject)
     ? vc.credentialSubject[0]
     : vc.credentialSubject;
@@ -148,8 +187,10 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
     type,
     issuer,
     issuanceDate,
+    expiryDate,
     claims,
     selectiveFields,
+    sdFields: [],
     rawRecord: record,
   };
 };
@@ -171,6 +212,8 @@ export const fromW3cV2Record = (record: W3cV2CredentialRecord): CredentialEntry 
   // W3C VC 2.0 uses validFrom instead of issuanceDate
   const issuanceDate = vc.validFrom ?? new Date().toISOString();
 
+  const expiryDate = typeof vc.validUntil === 'string' ? vc.validUntil : undefined;
+
   const subject = Array.isArray(vc.credentialSubject)
     ? vc.credentialSubject[0]
     : vc.credentialSubject;
@@ -185,8 +228,10 @@ export const fromW3cV2Record = (record: W3cV2CredentialRecord): CredentialEntry 
     type,
     issuer,
     issuanceDate,
+    expiryDate,
     claims,
     selectiveFields,
+    sdFields: [],
     rawRecord: record as unknown as W3cCredentialRecord,
   };
 };

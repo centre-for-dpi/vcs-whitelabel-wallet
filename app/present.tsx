@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -11,11 +12,14 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import { useTranslation } from 'react-i18next';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
-import { branding } from '../branding.config';
+import { branding, trustRegistry } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
+import { checkTrust, TRUST_COLORS, TRUST_ICONS, type TrustStatus } from '../src/agent/trust';
 import i18n from '../src/i18n';
 import { normalizeAuthorizationRequestUrl, isHttpOid4VpRequest, resolveHttpOid4VpRequest } from '../src/agent/oid4vp/normalizeRequest';
+import { selectCredentialsForRequest } from '../src/agent/oid4vp/selectCredentials';
 import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
+import { fromSdJwtRecord } from '../src/utils/credential';
 import { addPresentation } from '../src/utils/presentationHistory';
 
 type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
@@ -27,15 +31,25 @@ type RequestInfo = {
   requestedFields: string[];
 };
 
+type DisclosureInfo = {
+  credentialType: string;
+  beingShared: string[];    // claim keys the verifier will receive
+  stayingPrivate: string[]; // claim keys in the credential that will NOT be sent
+};
+
 export default function Present() {
   const { t } = useTranslation();
   const { url, id, format } = useLocalSearchParams<{ url?: string; id?: string; format?: string }>();
   const agentState = useAgentState();
   const [step, setStep] = useState<Step>('resolving');
   const [requestInfo, setRequestInfo] = useState<RequestInfo | null>(null);
+  const [disclosureInfo, setDisclosureInfo] = useState<DisclosureInfo | null>(null);
   const [resolvedRequest, setResolvedRequest] = useState<OpenId4VpResolvedAuthorizationRequest | null>(null);
   const [compactSdJwt, setCompactSdJwt] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [optionalFields, setOptionalFields] = useState<Set<string>>(new Set());
+  const [deselectedFields, setDeselectedFields] = useState<Set<string>>(new Set());
+  const [verifierTrust, setVerifierTrust] = useState<TrustStatus>('unknown');
 
   useEffect(() => {
     if (agentState.status !== 'ready') return;
@@ -63,6 +77,7 @@ export default function Present() {
       const r = resolved as Record<string, unknown>;
       const verifierInfo = r.verifier as Record<string, string> | undefined;
       const verifier = verifierInfo?.effectiveClientId ?? i18n.t('present.verifier_fallback');
+      setVerifierTrust(checkTrust(verifier, trustRegistry));
 
       const pex = r.presentationExchange as Record<string, unknown> | undefined;
       const dcql = r.dcql as Record<string, unknown> | undefined;
@@ -77,6 +92,7 @@ export default function Present() {
         purpose = (definition?.purpose as string | undefined) ?? purpose;
         const descriptors = (definition?.input_descriptors as Array<Record<string, unknown>>) ?? [];
         requestedTypes = descriptors.map((d) => (d.name ?? d.id ?? i18n.t('present.credential_fallback')) as string);
+        const optFieldSet = new Set<string>();
         for (const d of descriptors) {
           const fields = ((d.constraints as Record<string, unknown> | undefined)
             ?.fields as Array<Record<string, unknown>>) ?? [];
@@ -85,9 +101,11 @@ export default function Present() {
             const leaf = paths?.[0]?.split('.').pop()?.replace(/[[\]]/g, '');
             if (leaf && leaf !== '$' && leaf !== 'vct' && leaf !== 'type') {
               requestedFields.push(leaf);
+              if (f.optional === true) optFieldSet.add(leaf);
             }
           }
         }
+        setOptionalFields(optFieldSet);
       } else if (dcql) {
         const queryResult = dcql.queryResult as Record<string, unknown> | undefined;
         const credQueries = (queryResult?.credentials as Array<Record<string, unknown>>) ?? [];
@@ -123,6 +141,35 @@ export default function Present() {
       requestedFields = [...new Set(requestedFields)];
       console.log('[present] verifier:', verifier, '| types:', requestedTypes, '| fields:', requestedFields);
 
+      // Pre-select credentials to validate the request CAN be satisfied
+      // and to compute the selective disclosure breakdown for the UI.
+      try {
+        const selected = await selectCredentialsForRequest(agent, resolved);
+
+        // PEX: extract the first matched credential and compute disclosed / private split
+        if (selected.presentationExchange) {
+          const firstEntry = Object.values(selected.presentationExchange.credentials)[0]?.[0];
+          if (firstEntry) {
+            const credEntry = fromSdJwtRecord(firstEntry.credentialRecord);
+            const beingShared = requestedFields.filter((f) => credEntry.selectiveFields.includes(f));
+            const stayingPrivate = credEntry.selectiveFields.filter((f) => !requestedFields.includes(f));
+            setDisclosureInfo({ credentialType: credEntry.type, beingShared, stayingPrivate });
+          }
+        }
+
+        // DCQL: no easy access to the matched record — show requested fields as being shared
+        if (selected.dcql) {
+          setDisclosureInfo({
+            credentialType: requestedTypes[0] ?? i18n.t('present.credential_fallback'),
+            beingShared: requestedFields,
+            stayingPrivate: [],
+          });
+        }
+      } catch (selErr) {
+        // Selection failed (no matching credential) — bubble up as a resolve error
+        throw selErr;
+      }
+
       setRequestInfo({ verifier, purpose, requestedTypes, requestedFields });
       setStep('confirm');
     } catch (e: unknown) {
@@ -156,15 +203,23 @@ export default function Present() {
     setStep('presenting');
     try {
       console.log('[present] presenting credentials...');
-      await presentCredentials(agent, resolvedRequest);
+      await presentCredentials(agent, resolvedRequest, deselectedFields.size > 0 ? deselectedFields : undefined);
       console.log('[present] presentation successful');
       if (requestInfo) {
+        const effectiveShared = disclosureInfo
+          ? disclosureInfo.beingShared.filter((f) => !deselectedFields.has(f))
+          : requestInfo.requestedFields;
         addPresentation({
           timestamp: new Date().toISOString(),
           verifier: requestInfo.verifier,
           purpose: requestInfo.purpose,
           credentialTypes: requestInfo.requestedTypes,
-          sharedFields: requestInfo.requestedFields,
+          sharedFields: effectiveShared,
+          privateFields: disclosureInfo?.stayingPrivate,
+          trustStatus: verifierTrust,
+          protocol: resolvedRequest
+            ? ((resolvedRequest as unknown as Record<string, unknown>).dcql ? 'dcql' : 'pex')
+            : undefined,
         }).catch((e) => console.error('[history] save error:', e));
       }
       setStep('done');
@@ -191,36 +246,88 @@ export default function Present() {
 
       {step === 'confirm' && requestInfo && (
         <>
+          {/* Verifier + purpose */}
           <View style={styles.card}>
             <Text style={styles.label}>{t('present.label_verifier')}</Text>
-            <Text style={styles.value}>{requestInfo.verifier}</Text>
+            <View style={styles.trustRow}>
+              <Text style={styles.value}>{requestInfo.verifier}</Text>
+              <View style={[styles.trustBadge, { backgroundColor: TRUST_COLORS[verifierTrust] + '1A', borderColor: TRUST_COLORS[verifierTrust] }]}>
+                <Text style={[styles.trustBadgeText, { color: TRUST_COLORS[verifierTrust] }]}>
+                  {TRUST_ICONS[verifierTrust]} {t(`trust.${verifierTrust}`)}
+                </Text>
+              </View>
+            </View>
             <Text style={[styles.label, { marginTop: 16 }]}>{t('present.label_purpose')}</Text>
             <Text style={styles.value}>{requestInfo.purpose}</Text>
-            {requestInfo.requestedTypes.length > 0 && (
-              <>
-                <Text style={[styles.label, { marginTop: 16 }]}>{t('present.label_creds')}</Text>
-                {requestInfo.requestedTypes.map((type, i) => (
-                  <View key={i} style={styles.credRow}>
-                    <Text style={styles.credName}>🔍  {type}</Text>
-                  </View>
-                ))}
-              </>
-            )}
-            {requestInfo.requestedFields.length > 0 && (
-              <>
-                <Text style={[styles.label, { marginTop: 16 }]}>{t('present.label_fields')}</Text>
-                {requestInfo.requestedFields.map((f, i) => (
-                  <View key={i} style={styles.credRow}>
-                    <Text style={styles.credName}>📋  {f}</Text>
-                  </View>
-                ))}
-              </>
-            )}
           </View>
 
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>{t('present.auto_select')}</Text>
-          </View>
+          {/* Selective disclosure breakdown */}
+          {disclosureInfo && (
+            <View style={styles.disclosureCard}>
+              <Text style={styles.label}>{t('present.credential_used')}</Text>
+              <Text style={styles.credentialType}>{disclosureInfo.credentialType}</Text>
+
+              {disclosureInfo.beingShared.length > 0 && (
+                <>
+                  <View style={styles.disclosureDivider} />
+                  <View style={styles.disclosureHeaderRow}>
+                    <Text style={[styles.label, { color: '#059669' }]}>{t('present.label_disclosed')}</Text>
+                    {optionalFields.size > 0 && (
+                      <Text style={styles.optionalHint}>{t('present.optional_hint')}</Text>
+                    )}
+                  </View>
+                  {disclosureInfo.beingShared.map((field) => {
+                    const isOptional = optionalFields.has(field);
+                    const isOn = !deselectedFields.has(field);
+                    return (
+                      <View key={field} style={styles.fieldRow}>
+                        {isOptional ? (
+                          <Switch
+                            value={isOn}
+                            onValueChange={(val) => {
+                              setDeselectedFields((prev) => {
+                                const next = new Set(prev);
+                                if (!val) next.add(field); else next.delete(field);
+                                return next;
+                              });
+                            }}
+                            trackColor={{ false: '#E5E7EB', true: branding.primaryColor }}
+                            thumbColor="#fff"
+                            style={styles.fieldSwitch}
+                          />
+                        ) : (
+                          <Text style={styles.fieldIcon}>✓</Text>
+                        )}
+                        <Text style={[styles.fieldName, !isOn && styles.fieldNameDeselected]}>
+                          {field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </Text>
+                        {isOptional && (
+                          <View style={styles.optionalBadge}>
+                            <Text style={styles.optionalBadgeText}>{t('present.optional_badge')}</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+
+              {disclosureInfo.stayingPrivate.length > 0 && (
+                <>
+                  <View style={styles.disclosureDivider} />
+                  <Text style={[styles.label, { color: '#6B7280' }]}>{t('present.label_private')}</Text>
+                  {disclosureInfo.stayingPrivate.map((field) => (
+                    <View key={field} style={styles.fieldRow}>
+                      <Text style={styles.fieldIcon}>🔒</Text>
+                      <Text style={[styles.fieldName, styles.fieldNamePrivate]}>
+                        {field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: branding.primaryColor }]}
@@ -310,13 +417,25 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, padding: 24 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300 },
   statusText: { marginTop: 16, fontSize: 15, color: '#6B7280' },
-  card: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 20, marginBottom: 16 },
+  card: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 20, marginBottom: 12 },
+  disclosureCard: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 20, marginBottom: 20 },
   label: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  value: { fontSize: 15, color: '#111827' },
-  credRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 4 },
-  credName: { fontSize: 15, color: '#111827' },
-  notice: { backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 20 },
-  noticeText: { fontSize: 13, color: '#92400E', lineHeight: 18 },
+  trustRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  trustBadge: { borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  trustBadgeText: { fontSize: 12, fontWeight: '600' },
+  value: { fontSize: 15, color: '#111827', flex: 1 },
+  credentialType: { fontSize: 16, fontWeight: '600', color: '#111827', marginBottom: 4 },
+  disclosureDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 12 },
+  disclosureHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  optionalHint: { fontSize: 11, color: '#6B7280' },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
+  fieldIcon: { fontSize: 14, marginRight: 8, width: 20 },
+  fieldSwitch: { marginRight: 8, transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
+  fieldName: { fontSize: 14, color: '#111827', flex: 1 },
+  fieldNamePrivate: { color: '#9CA3AF' },
+  fieldNameDeselected: { color: '#9CA3AF', textDecorationLine: 'line-through' },
+  optionalBadge: { backgroundColor: '#F3F4F6', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 6 },
+  optionalBadgeText: { fontSize: 10, fontWeight: '600', color: '#6B7280' },
   btn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12, width: '100%', alignSelf: 'stretch' },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancelBtn: { height: 44, justifyContent: 'center', alignItems: 'center', alignSelf: 'stretch' },
