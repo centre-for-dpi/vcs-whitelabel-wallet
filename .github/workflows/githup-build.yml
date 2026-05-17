@@ -59,8 +59,8 @@ jobs:
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -sdk iphoneos \
             -configuration Release \
+            -destination "generic/platform=iOS" \
             -derivedDataPath ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
