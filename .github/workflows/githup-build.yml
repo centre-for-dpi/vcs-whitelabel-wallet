@@ -62,6 +62,7 @@ jobs:
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
+            -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
