@@ -28,6 +28,12 @@ jobs:
       - name: Instalar dependencias de JavaScript
         run: npm install
 
+      # expo-dev-client genera pods con xcassets que referencian simuladores viejos
+      # que no están en el runner. Para Release no se necesita; se elimina antes
+      # del prebuild para que no aparezca en el Podfile generado.
+      - name: Remover expo-dev-client (no requerido en Release)
+        run: npm uninstall expo-dev-client
+
       # --no-install evita que expo prebuild corra pod install internamente;
       # lo corremos nosotros en el paso siguiente para aprovechar el cache.
       - name: Generar carpeta iOS nativa (Expo Prebuild)
@@ -62,14 +68,15 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath ios/DerivedData/CDPIWallet.xcarchive \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            archive
+            clean build
 
       - name: Empaquetar en formato .ipa
         run: |
-          APP=$(find ios/DerivedData/CDPIWallet.xcarchive/Products -name "*.app" | head -1)
+          APP=$(find ios/DerivedData/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -1)
           echo "App encontrada: $APP"
           mkdir -p build/Payload
           cp -r "$APP" build/Payload/
