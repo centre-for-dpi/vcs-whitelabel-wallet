@@ -60,6 +60,12 @@ jobs:
           gem install cocoapods --no-document
           cd ios && pod install
 
+      # El runner tiene el SDK (iphoneos18.2) pero no los archivos de soporte de
+      # plataforma requeridos por -destination generic/platform=iOS. Esta descarga
+      # los instala (~2-5 min, solo en cache miss).
+      - name: Descargar plataforma iOS
+        run: xcodebuild -downloadPlatform iOS
+
       - name: Compilar Aplicación
         run: |
           WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" -type d | head -1)
@@ -70,7 +76,6 @@ jobs:
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath ios/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
