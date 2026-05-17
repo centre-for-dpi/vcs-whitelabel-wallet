@@ -28,11 +28,12 @@ jobs:
       - name: Instalar dependencias de JavaScript
         run: npm install
 
-      # expo-dev-client genera pods con xcassets que referencian simuladores viejos
-      # que no están en el runner. Para Release no se necesita; se elimina antes
-      # del prebuild para que no aparezca en el Podfile generado.
-      - name: Remover expo-dev-client (no requerido en Release)
-        run: npm uninstall expo-dev-client
+      # expo-dev-client declara pods con xcassets que referencian simuladores iOS
+      # 15.2 que no están en el runner macos-15. Se elimina del array de plugins
+      # en app.json antes del prebuild para que no genere esos pods. El paquete
+      # JS permanece instalado; solo se excluye la integración nativa en CI.
+      - name: Excluir expo-dev-client plugin del build de Release
+        run: sed -i '' '/"expo-dev-client"/d' app.json
 
       # --no-install evita que expo prebuild corra pod install internamente;
       # lo corremos nosotros en el paso siguiente para aprovechar el cache.
