@@ -13,12 +13,15 @@ import {
 import { useTranslation } from 'react-i18next';
 import { branding } from '../branding.config';
 import { useInitializeAgent } from '../src/agent/context';
-import { savePin, saveWalletKey } from '../src/utils/storage';
+import { checkBiometricSupport, authenticateWithBiometrics } from '../src/auth/biometric';
+import { savePin, saveWalletKey, setBiometricsEnabled } from '../src/utils/storage';
+
+type Step = 'welcome' | 'pin' | 'confirm' | 'biometrics';
 
 export default function Onboarding() {
   const { t } = useTranslation();
   const initializeAgent = useInitializeAgent();
-  const [step, setStep] = useState<'welcome' | 'pin' | 'confirm'>('welcome');
+  const [step, setStep] = useState<Step>('welcome');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,7 +42,14 @@ export default function Onboarding() {
       await saveWalletKey(key);
       await savePin(pin);
       await initializeAgent(key);
-      router.replace('/(tabs)/credentials');
+
+      // Offer biometrics if the device supports it
+      const support = await checkBiometricSupport();
+      if (support.available) {
+        setStep('biometrics');
+      } else {
+        router.replace('/(tabs)/credentials');
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('onboarding.setup_error'));
     } finally {
@@ -47,6 +57,40 @@ export default function Onboarding() {
     }
   };
 
+  const handleEnableBiometrics = async () => {
+    const success = await authenticateWithBiometrics(t('settings.biometrics_enable_prompt'));
+    if (success) {
+      await setBiometricsEnabled(true);
+    }
+    router.replace('/(tabs)/credentials');
+  };
+
+  const handleSkipBiometrics = async () => {
+    await setBiometricsEnabled(false);
+    router.replace('/(tabs)/credentials');
+  };
+
+  // ── Biometrics offer screen ──────────────────────────────────────────────────
+  if (step === 'biometrics') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.biometricIcon}>🔒</Text>
+        <Text style={styles.title}>{t('onboarding.biometrics_title')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.biometrics_body')}</Text>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: branding.primaryColor }]}
+          onPress={handleEnableBiometrics}
+        >
+          <Text style={styles.buttonText}>{t('onboarding.biometrics_enable_btn')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.skipBtn} onPress={handleSkipBiometrics}>
+          <Text style={styles.skipBtnText}>{t('onboarding.biometrics_skip_btn')}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── Welcome screen ───────────────────────────────────────────────────────────
   if (step === 'welcome') {
     return (
       <View style={styles.container}>
@@ -67,6 +111,7 @@ export default function Onboarding() {
     );
   }
 
+  // ── PIN entry / confirm screens ──────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <Text style={styles.title}>
@@ -116,6 +161,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   logo: { width: 120, height: 120, marginBottom: 24 },
+  biometricIcon: { fontSize: 64, marginBottom: 24 },
   title: { fontSize: 22, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 12 },
   subtitle: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 32, lineHeight: 22 },
   pinInput: {
@@ -133,5 +179,7 @@ const styles = StyleSheet.create({
   button: { width: '100%', height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  skipBtn: { marginTop: 16, height: 44, justifyContent: 'center', alignItems: 'center', width: '100%' },
+  skipBtnText: { fontSize: 15, color: '#6B7280' },
   error: { color: '#DC2626', fontSize: 14, marginBottom: 8 },
 });

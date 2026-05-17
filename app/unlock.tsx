@@ -1,7 +1,7 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,7 +15,20 @@ import { useTranslation } from 'react-i18next';
 import { branding, oidcConfig } from '../branding.config';
 import { useInitializeAgent } from '../src/agent/context';
 import { useUser } from '../src/auth/UserContext';
-import { getWalletKey, verifyPin, OidcUser } from '../src/utils/storage';
+import { checkBiometricSupport, authenticateWithBiometrics } from '../src/auth/biometric';
+import {
+  getWalletKey,
+  verifyPin,
+  OidcUser,
+  getLockoutUntil,
+  incrementFailCount,
+  lockoutDurationFor,
+  resetFailCount,
+  setLockout,
+  LOCKOUT_WARNING_THRESHOLD,
+  getBiometricsEnabled,
+  saveOidcTokens,
+} from '../src/utils/storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,6 +41,9 @@ export default function Unlock() {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const discovery = AuthSession.useAutoDiscovery(
     oidcConfig.enabled ? oidcConfig.issuerUrl : null,
@@ -45,9 +61,73 @@ export default function Unlock() {
 
   const codeVerifierRef = useRef<string | undefined>(undefined);
 
+  const startLockoutCountdown = (secondsRemaining: number) => {
+    if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current);
+    setLockoutSeconds(secondsRemaining);
+    lockoutTimerRef.current = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(lockoutTimerRef.current!);
+          lockoutTimerRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const unlockWithKey = useCallback(async () => {
+    const key = await getWalletKey();
+    if (!key) throw new Error('Wallet key not found');
+    await initializeAgent(key);
+    router.replace('/(tabs)/credentials');
+  }, [initializeAgent]);
+
+  const triggerBiometrics = useCallback(async () => {
+    const success = await authenticateWithBiometrics(t('unlock.biometrics_prompt'));
+    if (success) {
+      setLoading(true);
+      try {
+        await unlockWithKey();
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : t('unlock.unlock_error'));
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [t, unlockWithKey]);
+
+  // On mount: check lockout and biometrics, then auto-trigger if applicable
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const until = await getLockoutUntil();
+      const remaining = Math.ceil((until - Date.now()) / 1000);
+      if (remaining > 0) {
+        startLockoutCountdown(remaining);
+        return;
+      }
+
+      const [enabled, support] = await Promise.all([
+        getBiometricsEnabled(),
+        checkBiometricSupport(),
+      ]);
+
+      if (!cancelled && enabled && support.available) {
+        setBiometricsAvailable(true);
+        triggerBiometrics();
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!response) return;
-    console.log('[oidc] response type:', response.type, JSON.stringify(response));
+    console.log('[oidc] response type:', response.type);
     if (response.type === 'success') {
       setLoading(true);
       exchangeCode(response.params.code);
@@ -79,6 +159,8 @@ export default function Unlock() {
         discovery,
       );
 
+      await saveOidcTokens(tokenResp.refreshToken, tokenResp.expiresIn);
+
       if (discovery.userInfoEndpoint) {
         const uiResp = await fetch(discovery.userInfoEndpoint, {
           headers: { Authorization: `Bearer ${tokenResp.accessToken}` },
@@ -94,10 +176,7 @@ export default function Unlock() {
         await setUser(oidcUser);
       }
 
-      const key = await getWalletKey();
-      if (!key) throw new Error('Wallet key not found');
-      await initializeAgent(key);
-      router.replace('/(tabs)/credentials');
+      await unlockWithKey();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('unlock.auth_error'));
     } finally {
@@ -106,9 +185,6 @@ export default function Unlock() {
   };
 
   const handleOidcLogin = async () => {
-    console.log('[oidc] discovery:', JSON.stringify(discovery));
-    console.log('[oidc] request url:', request?.url);
-    console.log('[oidc] redirect_uri:', REDIRECT_URI);
     codeVerifierRef.current = request?.codeVerifier ?? undefined;
     setError('');
     await promptAsync();
@@ -116,25 +192,45 @@ export default function Unlock() {
 
   const handleUnlock = async () => {
     if (pin.length < 6) return;
+
+    const until = await getLockoutUntil();
+    const remaining = Math.ceil((until - Date.now()) / 1000);
+    if (remaining > 0) {
+      startLockoutCountdown(remaining);
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
       const valid = await verifyPin(pin);
       if (!valid) {
-        setError(t('unlock.pin_wrong'));
+        const count = await incrementFailCount();
+        const duration = lockoutDurationFor(count);
+        if (duration > 0) {
+          await setLockout(duration);
+          startLockoutCountdown(Math.ceil(duration / 1000));
+        } else {
+          const attemptsBeforeLock = LOCKOUT_WARNING_THRESHOLD - count;
+          if (attemptsBeforeLock > 0 && attemptsBeforeLock <= 2) {
+            setError(t('unlock.pin_wrong_attempts', { count: attemptsBeforeLock }));
+          } else {
+            setError(t('unlock.pin_wrong'));
+          }
+        }
         setPin('');
         return;
       }
-      const key = await getWalletKey();
-      if (!key) throw new Error('Wallet key not found');
-      await initializeAgent(key);
-      router.replace('/(tabs)/credentials');
+      await resetFailCount();
+      await unlockWithKey();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t('unlock.unlock_error'));
     } finally {
       setLoading(false);
     }
   };
+
+  const isLocked = lockoutSeconds > 0;
 
   return (
     <View style={styles.container}>
@@ -144,53 +240,72 @@ export default function Unlock() {
         resizeMode="contain"
       />
 
-      <Text style={styles.title}>{t('unlock.title')}</Text>
-      <TextInput
-        style={styles.pinInput}
-        value={pin}
-        onChangeText={setPin}
-        keyboardType="number-pad"
-        secureTextEntry
-        maxLength={6}
-        placeholder="••••••"
-        placeholderTextColor="#9CA3AF"
-        autoFocus
-      />
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {loading ? (
-        <ActivityIndicator size="large" color={branding.primaryColor} style={{ marginTop: 24 }} />
+      {isLocked ? (
+        <View style={styles.lockedBox}>
+          <Text style={styles.lockedTitle}>{t('unlock.locked_title')}</Text>
+          <Text style={styles.lockedBody}>
+            {t('unlock.locked_body', { seconds: lockoutSeconds })}
+          </Text>
+        </View>
       ) : (
         <>
-          <TouchableOpacity
-            style={[
-              styles.button,
-              { backgroundColor: branding.primaryColor },
-              pin.length < 6 && styles.buttonDisabled,
-            ]}
-            disabled={pin.length < 6}
-            onPress={handleUnlock}
-          >
-            <Text style={styles.buttonText}>{t('unlock.unlock_btn')}</Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>{t('unlock.title')}</Text>
+          <TextInput
+            style={styles.pinInput}
+            value={pin}
+            onChangeText={setPin}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={6}
+            placeholder="••••••"
+            placeholderTextColor="#9CA3AF"
+            autoFocus={!biometricsAvailable}
+          />
 
-          {oidcConfig.enabled && (
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          {loading ? (
+            <ActivityIndicator size="large" color={branding.primaryColor} style={{ marginTop: 24 }} />
+          ) : (
             <>
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerLabel}>o</Text>
-                <View style={styles.dividerLine} />
-              </View>
               <TouchableOpacity
-                style={[styles.oidcButton, !request && styles.buttonDisabled]}
-                disabled={!request}
-                onPress={handleOidcLogin}
+                style={[
+                  styles.button,
+                  { backgroundColor: branding.primaryColor },
+                  pin.length < 6 && styles.buttonDisabled,
+                ]}
+                disabled={pin.length < 6}
+                onPress={handleUnlock}
               >
-                <Text style={[styles.oidcButtonText, { color: branding.primaryColor }]}>
-                  {oidcConfig.buttonLabel}
-                </Text>
+                <Text style={styles.buttonText}>{t('unlock.unlock_btn')}</Text>
               </TouchableOpacity>
+
+              {biometricsAvailable && (
+                <TouchableOpacity style={styles.biometricBtn} onPress={triggerBiometrics}>
+                  <Text style={[styles.biometricBtnText, { color: branding.primaryColor }]}>
+                    {t('unlock.use_biometrics')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {oidcConfig.enabled && (
+                <>
+                  <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerLabel}>o</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.oidcButton, !request && styles.buttonDisabled]}
+                    disabled={!request}
+                    onPress={handleOidcLogin}
+                  >
+                    <Text style={[styles.oidcButtonText, { color: branding.primaryColor }]}>
+                      {oidcConfig.buttonLabel}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </>
           )}
         </>
@@ -224,10 +339,23 @@ const styles = StyleSheet.create({
   button: { width: '100%', height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  error: { color: '#DC2626', fontSize: 14, marginBottom: 8 },
+  error: { color: '#DC2626', fontSize: 14, marginBottom: 8, textAlign: 'center' },
+  biometricBtn: { marginTop: 16, height: 44, justifyContent: 'center', alignItems: 'center', width: '100%' },
+  biometricBtnText: { fontSize: 15, fontWeight: '600' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 20 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dividerLabel: { marginHorizontal: 12, fontSize: 13, color: '#9CA3AF' },
   oidcButton: { width: '100%', height: 52, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' },
   oidcButtonText: { fontSize: 15, fontWeight: '600' },
+  lockedBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    width: '100%',
+  },
+  lockedTitle: { fontSize: 18, fontWeight: '700', color: '#DC2626', marginBottom: 10 },
+  lockedBody: { fontSize: 14, color: '#7F1D1D', textAlign: 'center', lineHeight: 22 },
 });
