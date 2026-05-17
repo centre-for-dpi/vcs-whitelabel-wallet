@@ -3,7 +3,7 @@ name: Compilar iOS (React Native)
 on:
   push:
     branches:
-      - main # O 'master' si es el caso
+      - main
   workflow_dispatch:
 
 jobs:
@@ -14,10 +14,9 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      # --- NUEVO PASO PARA SOLUCIONAR EL ERROR DE VERSIÓN ---
       - name: Seleccionar Xcode 16
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
           xcodebuild -version
 
       - name: Configurar Node.js
@@ -59,10 +58,10 @@ jobs:
           mkdir -p build/Payload
           mv ios/build/Build/Products/Release-iphoneos/*.app build/Payload/
           cd build
-          zip -r YourAppName.ipa Payload
+          zip -r cdpiwallet.ipa Payload
           
       - name: Subir archivo final a GitHub
         uses: actions/upload-artifact@v4
         with:
           name: app-ios-release
-          path: build/YourAppName.ipa
+          path: build/cdpiwallet.ipa
