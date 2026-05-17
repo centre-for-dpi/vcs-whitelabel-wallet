@@ -31,17 +31,15 @@ jobs:
       - name: Generar carpeta iOS nativa (Expo Prebuild)
         run: npx expo prebuild --platform ios --clean
 
-      # ruby/setup-ruby con bundler-cache usa el Gemfile que genera expo prebuild en ios/
-      - name: Configurar Ruby y Bundler
+      - name: Configurar Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: true
-          working-directory: ios
 
       - name: Instalar CocoaPods
-        working-directory: ios
-        run: bundle exec pod install
+        run: |
+          gem install cocoapods --no-document
+          cd ios && pod install
 
       - name: Compilar Aplicación
         run: |
