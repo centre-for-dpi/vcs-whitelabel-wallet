@@ -28,8 +28,10 @@ jobs:
       - name: Instalar dependencias de JavaScript
         run: npm install
 
+      # --no-install evita que expo prebuild corra pod install internamente;
+      # lo corremos nosotros en el paso siguiente para aprovechar el cache.
       - name: Generar carpeta iOS nativa (Expo Prebuild)
-        run: npx expo prebuild --platform ios --clean
+        run: npx expo prebuild --platform ios --clean --no-install
 
       - name: Configurar Ruby
         uses: ruby/setup-ruby@v1
