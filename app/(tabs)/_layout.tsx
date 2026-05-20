@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Image, Text, View } from 'react-native';
+import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 
@@ -9,6 +9,19 @@ const Icon = ({ label, focused, size = 22 }: { label: string; focused: boolean; 
     <Text style={{ fontSize: size, opacity: focused ? 1 : 0.45 }}>{label}</Text>
   </View>
 );
+
+function NotificationBell() {
+  const { t } = useTranslation();
+  return (
+    <TouchableOpacity
+      onPress={() => Alert.alert(t('notifications.coming_soon_title'), t('notifications.coming_soon_body'))}
+      hitSlop={10}
+      style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+    >
+      <Text style={{ fontSize: 20 }}>🔔</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function TabsLayout() {
   const { t } = useTranslation();
@@ -41,6 +54,7 @@ export default function TabsLayout() {
               </Text>
             </View>
           ),
+          headerRight: () => <NotificationBell />,
         }}
       />
       <Tabs.Screen

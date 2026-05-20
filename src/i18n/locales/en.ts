@@ -217,6 +217,10 @@ const en = {
     es: 'Español',
     fr: 'Français',
   },
+  notifications: {
+    coming_soon_title: 'Notifications',
+    coming_soon_body: 'Credential offers, verification requests, and messages will appear here.',
+  },
   trust: {
     trusted: 'Trusted',
     unknown: 'Unknown',

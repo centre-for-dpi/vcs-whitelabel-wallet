@@ -219,6 +219,10 @@ const es: Translation = {
     es: 'Español',
     fr: 'Français',
   },
+  notifications: {
+    coming_soon_title: 'Notificaciones',
+    coming_soon_body: 'Aquí aparecerán ofertas de credenciales, solicitudes de verificación y mensajes.',
+  },
   trust: {
     trusted: 'Confiable',
     unknown: 'Desconocido',
