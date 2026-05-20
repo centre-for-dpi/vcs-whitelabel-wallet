@@ -46,14 +46,16 @@ export async function exportBackup(agent: WalletAgent, phrase: string): Promise<
   if (await RNFS.exists(exportPath)) await RNFS.unlink(exportPath);
   if (await RNFS.exists(outputPath)) await RNFS.unlink(outputPath);
 
-  // Export Askar wallet to temp SQLite file (encrypted with derived key)
+  // Export Askar wallet to temp SQLite file (encrypted with derived key).
+  // Using argon2i:int so Askar accepts any string passphrase — raw requires
+  // an exact 32-byte key in base58, which hex SHA-256 is not.
   const askarExportKey = await deriveAskarExportKey(phrase);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (agent as any).modules.askar.exportStore({
     exportToStore: {
       id: `cdpi-export-${timestamp}`,
       key: askarExportKey,
-      keyDerivationMethod: 'raw' as const,
+      keyDerivationMethod: 'argon2i:int' as const,
       database: { type: 'sqlite' as const, config: { path: exportPath } },
     },
   });
@@ -142,7 +144,7 @@ export async function restoreAskarWallet(
   const askarExportKey = await deriveAskarExportKey(phrase);
   const sourceStore = await Store.open({
     uri: `sqlite://${tempPath}`,
-    keyMethod: new StoreKeyMethod(KdfMethod.Raw),
+    keyMethod: new StoreKeyMethod(KdfMethod.Argon2IInt),
     passKey: askarExportKey,
   });
 
