@@ -88,8 +88,8 @@ export async function exportBackup(_agent: WalletAgent, phrase: string): Promise
   const backupFile: BackupFile = { version: BACKUP_VERSION, encrypted };
   await RNFS.writeFile(outputPath, JSON.stringify(backupFile), 'utf8');
 
-  // Share via native sheet
-  await Sharing.shareAsync(outputPath, {
+  // Share via native sheet — expo-sharing requires a file:// URI
+  await Sharing.shareAsync(`file://${outputPath}`, {
     mimeType: 'application/octet-stream',
     dialogTitle: 'Save wallet backup',
     UTI: 'public.data',
