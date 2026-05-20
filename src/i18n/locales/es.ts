@@ -220,8 +220,9 @@ const es: Translation = {
     fr: 'Français',
   },
   notifications: {
-    coming_soon_title: 'Notificaciones',
-    coming_soon_body: 'Aquí aparecerán ofertas de credenciales, solicitudes de verificación y mensajes.',
+    title: 'Notificaciones',
+    empty_title: 'Sin notificaciones',
+    empty_body: 'Aquí aparecerán ofertas de credenciales, solicitudes de verificación y mensajes.',
   },
   trust: {
     trusted: 'Confiable',

@@ -1,6 +1,6 @@
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import React from 'react';
-import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 
@@ -11,10 +11,9 @@ const Icon = ({ label, focused, size = 22 }: { label: string; focused: boolean; 
 );
 
 function NotificationBell() {
-  const { t } = useTranslation();
   return (
     <TouchableOpacity
-      onPress={() => Alert.alert(t('notifications.coming_soon_title'), t('notifications.coming_soon_body'))}
+      onPress={() => router.push('/notifications')}
       hitSlop={10}
       style={{ paddingHorizontal: 16, paddingVertical: 8 }}
     >

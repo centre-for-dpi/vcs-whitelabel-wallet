@@ -218,8 +218,9 @@ const en = {
     fr: 'Français',
   },
   notifications: {
-    coming_soon_title: 'Notifications',
-    coming_soon_body: 'Credential offers, verification requests, and messages will appear here.',
+    title: 'Notifications',
+    empty_title: 'No notifications',
+    empty_body: 'Credential offers, verification requests, and messages will appear here.',
   },
   trust: {
     trusted: 'Trusted',

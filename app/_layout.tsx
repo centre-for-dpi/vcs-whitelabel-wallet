@@ -36,6 +36,7 @@ export default function RootLayout() {
             name="present"
             options={{ presentation: 'modal', headerShown: true, title: t('modals.present') }}
           />
+          <Stack.Screen name="notifications" options={{ presentation: 'modal', headerShown: false }} />
         </Stack>
       </AgentProvider>
     </UserProvider>
