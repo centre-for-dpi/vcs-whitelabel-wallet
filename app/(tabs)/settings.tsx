@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, Share, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Share, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 import { useAgentState } from '../../src/agent/context';
@@ -305,7 +305,10 @@ export default function Settings() {
     </Modal>
 
     <Modal visible={changePinVisible} animationType="slide" transparent onRequestClose={() => setChangePinVisible(false)}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>{t('settings.change_pin_title')}</Text>
           <Text style={styles.modalSubtitle}>
@@ -350,7 +353,7 @@ export default function Settings() {
             <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
     </>
   );
