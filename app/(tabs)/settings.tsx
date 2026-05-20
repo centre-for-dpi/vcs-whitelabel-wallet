@@ -6,8 +6,8 @@ import { useAgentState } from '../../src/agent/context';
 import { useUser } from '../../src/auth/UserContext';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../../src/auth/biometric';
 import { SUPPORTED_LANGS, setLanguagePreference, type Language } from '../../src/i18n';
-import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase, verifyPin, savePin } from '../../src/utils/storage';
-import { exportBackup } from '../../src/utils/backup';
+import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase, saveRecoveryPhrase, verifyPin, savePin } from '../../src/utils/storage';
+import { exportBackup, generateRecoveryPhrase } from '../../src/utils/backup';
 
 const Row = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.row}>
@@ -26,6 +26,7 @@ export default function Settings() {
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [phraseVisible, setPhraseVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [generatingPhrase, setGeneratingPhrase] = useState(false);
 
   const [changePinVisible, setChangePinVisible] = useState(false);
   const [changePinStep, setChangePinStep] = useState<'verify' | 'new' | 'confirm'>('verify');
@@ -120,6 +121,20 @@ export default function Settings() {
     Alert.alert('', t('settings.change_pin_success'));
   };
 
+  const handleSetupRecoveryPhrase = async () => {
+    setGeneratingPhrase(true);
+    try {
+      const phrase = await generateRecoveryPhrase();
+      await saveRecoveryPhrase(phrase);
+      setRecoveryPhrase(phrase);
+      setPhraseVisible(true);
+    } catch {
+      Alert.alert(t('common.error'), t('backup.export_error'));
+    } finally {
+      setGeneratingPhrase(false);
+    }
+  };
+
   const handleExportBackup = async () => {
     if (agentState.status !== 'ready' || !recoveryPhrase) return;
     setExporting(true);
@@ -187,36 +202,50 @@ export default function Settings() {
         <Row label={t('settings.row_name')} value={branding.appName} />
       </View>
 
-      {recoveryPhrase ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('backup.section_title')}</Text>
-
-          <View style={styles.phraseRow}>
-            <Text style={styles.rowLabel}>{t('backup.recovery_phrase_row')}</Text>
-            <TouchableOpacity onPress={() => setPhraseVisible((v) => !v)}>
-              <Text style={[styles.rowValue, { color: branding.primaryColor }]}>
-                {phraseVisible ? t('backup.hide_phrase') : t('backup.show_phrase')}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('backup.section_title')}</Text>
+        {recoveryPhrase ? (
+          <>
+            <View style={styles.phraseRow}>
+              <Text style={styles.rowLabel}>{t('backup.recovery_phrase_row')}</Text>
+              <TouchableOpacity onPress={() => setPhraseVisible((v) => !v)}>
+                <Text style={[styles.rowValue, { color: branding.primaryColor }]}>
+                  {phraseVisible ? t('backup.hide_phrase') : t('backup.show_phrase')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {phraseVisible && (
+              <View style={styles.phraseBox}>
+                <Text style={styles.phraseText}>{recoveryPhrase}</Text>
+                <Text style={styles.phraseWarning}>{t('backup.phrase_warning')}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.exportBtn, { backgroundColor: branding.primaryColor }, exporting && styles.exportBtnDisabled]}
+              onPress={handleExportBackup}
+              disabled={exporting}
+            >
+              <Text style={styles.exportBtnText}>
+                {exporting ? t('backup.exporting') : t('backup.export_btn')}
               </Text>
             </TouchableOpacity>
-          </View>
-          {phraseVisible && (
-            <View style={styles.phraseBox}>
-              <Text style={styles.phraseText}>{recoveryPhrase}</Text>
-              <Text style={styles.phraseWarning}>{t('backup.phrase_warning')}</Text>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: branding.primaryColor }, exporting && styles.exportBtnDisabled]}
-            onPress={handleExportBackup}
-            disabled={exporting}
-          >
-            <Text style={styles.exportBtnText}>
-              {exporting ? t('backup.exporting') : t('backup.export_btn')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={styles.setupPhraseHint}>{t('backup.setup_phrase_hint')}</Text>
+            {generatingPhrase ? (
+              <ActivityIndicator size="small" color={branding.primaryColor} style={{ marginTop: 16 }} />
+            ) : (
+              <TouchableOpacity
+                style={[styles.exportBtn, { backgroundColor: branding.primaryColor }]}
+                onPress={handleSetupRecoveryPhrase}
+              >
+                <Text style={styles.exportBtnText}>{t('backup.setup_phrase_btn')}</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
 
       {holderDids.length > 0 && (
         <View style={styles.section}>
@@ -347,6 +376,7 @@ const styles = StyleSheet.create({
   phraseBox: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 14, marginTop: 12, marginBottom: 4 },
   phraseText: { fontSize: 14, color: '#111827', lineHeight: 22, fontFamily: 'monospace' },
   phraseWarning: { fontSize: 11, color: '#D97706', marginTop: 10, lineHeight: 16 },
+  setupPhraseHint: { fontSize: 13, color: '#6B7280', lineHeight: 20, marginBottom: 4 },
   exportBtn: { marginTop: 14, height: 46, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   exportBtnDisabled: { opacity: 0.5 },
   exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },

@@ -164,6 +164,8 @@ const fr: Translation = {
     show_phrase: 'Afficher',
     hide_phrase: 'Masquer',
     phrase_warning: 'Notez ces 12 mots et conservez-les en lieu sûr. Toute personne possédant cette phrase peut restaurer votre portefeuille.',
+    setup_phrase_hint: "Votre portefeuille n'a pas encore de phrase de récupération. Générez-en une pour activer les sauvegardes chiffrées.",
+    setup_phrase_btn: 'Configurer la phrase de récupération',
     export_btn: 'Exporter la sauvegarde chiffrée',
     exporting: 'Export en cours...',
     export_error: 'Échec de la sauvegarde. Veuillez réessayer.',

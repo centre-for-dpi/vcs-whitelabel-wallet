@@ -164,6 +164,8 @@ const es: Translation = {
     show_phrase: 'Mostrar',
     hide_phrase: 'Ocultar',
     phrase_warning: 'Anota estas 12 palabras y guárdalas en un lugar seguro. Cualquier persona con esta frase puede restaurar tu billetera.',
+    setup_phrase_hint: 'Tu billetera aún no tiene una frase de recuperación. Genera una para habilitar los respaldos cifrados.',
+    setup_phrase_btn: 'Configurar frase de recuperación',
     export_btn: 'Exportar respaldo cifrado',
     exporting: 'Exportando...',
     export_error: 'Error al crear el respaldo. Intenta de nuevo.',
