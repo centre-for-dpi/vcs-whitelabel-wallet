@@ -194,9 +194,12 @@ export default function Settings() {
             <Text style={styles.rowValueMuted}>{t('settings.biometrics_unavailable')}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.row} onPress={openChangePin}>
-          <Text style={styles.rowLabel}>{t('settings.change_pin_row')}</Text>
-          <Text style={styles.rowValueMuted}>›</Text>
+        <TouchableOpacity style={styles.actionRow} onPress={openChangePin} activeOpacity={0.6}>
+          <View style={[styles.actionIcon, { backgroundColor: branding.primaryColor }]}>
+            <Text style={styles.actionIconText}>🔑</Text>
+          </View>
+          <Text style={styles.actionRowLabel}>{t('settings.change_pin_row')}</Text>
+          <Text style={styles.actionRowChevron}>›</Text>
         </TouchableOpacity>
       </View>
 
@@ -376,6 +379,11 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, color: '#374151', flex: 1 },
   rowValue: { fontSize: 13, color: '#6B7280', flex: 1, textAlign: 'right' },
   rowValueMuted: { fontSize: 13, color: '#D1D5DB', textAlign: 'right' },
+  actionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  actionIcon: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  actionIconText: { fontSize: 15 },
+  actionRowLabel: { flex: 1, fontSize: 14, color: '#111827', fontWeight: '500' },
+  actionRowChevron: { fontSize: 18, color: '#C7C7CC', fontWeight: '400' },
   langRow: { flexDirection: 'row', gap: 8 },
   langBtn: { flex: 1, height: 40, borderRadius: 8, borderWidth: 1.5, borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' },
   langBtnText: { fontSize: 13, fontWeight: '600', color: '#374151' },
