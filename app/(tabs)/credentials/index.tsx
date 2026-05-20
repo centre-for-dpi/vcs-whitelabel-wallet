@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -65,6 +65,9 @@ export default function CredentialList() {
     }
   }, [agentState]);
 
+  // Re-run when agent state changes (e.g. becomes ready while screen is already focused)
+  useEffect(() => { void load(); }, [load]);
+  // Re-run on focus (e.g. returning from credential detail or another tab)
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const onRefresh = () => { setRefreshing(true); setVisibleCount(PAGE_SIZE); load(); };
