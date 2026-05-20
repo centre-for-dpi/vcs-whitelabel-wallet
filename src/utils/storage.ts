@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 
 const KEY_WALLET_KEY = 'cdpi_wallet_key';
+const KEY_RECOVERY_PHRASE = 'cdpi_recovery_phrase';
 const KEY_PIN_HASH = 'cdpi_pin_hash';
 const KEY_PIN_SALT = 'cdpi_pin_salt';
 const KEY_PIN_LEGACY = 'cdpi_wallet_pin'; // pre-v2 plaintext PIN — kept only for migration
@@ -102,6 +103,14 @@ export const saveWalletKey = async (key: string): Promise<void> => {
 
 export const getWalletKey = async (): Promise<string | null> => {
   return SecureStore.getItemAsync(KEY_WALLET_KEY);
+};
+
+export const saveRecoveryPhrase = async (phrase: string): Promise<void> => {
+  await SecureStore.setItemAsync(KEY_RECOVERY_PHRASE, phrase);
+};
+
+export const getRecoveryPhrase = async (): Promise<string | null> => {
+  return SecureStore.getItemAsync(KEY_RECOVERY_PHRASE);
 };
 
 export const saveOidcUser = async (user: OidcUser): Promise<void> => {

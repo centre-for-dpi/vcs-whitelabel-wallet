@@ -14,7 +14,8 @@ import { useTranslation } from 'react-i18next';
 import { branding } from '../branding.config';
 import { useInitializeAgent } from '../src/agent/context';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../src/auth/biometric';
-import { savePin, saveWalletKey, setBiometricsEnabled } from '../src/utils/storage';
+import { savePin, saveWalletKey, saveRecoveryPhrase, setBiometricsEnabled } from '../src/utils/storage';
+import { generateRecoveryPhrase } from '../src/utils/backup';
 
 type Step = 'welcome' | 'pin' | 'confirm' | 'biometrics';
 
@@ -41,6 +42,8 @@ export default function Onboarding() {
       );
       await saveWalletKey(key);
       await savePin(pin);
+      const phrase = await generateRecoveryPhrase();
+      await saveRecoveryPhrase(phrase);
       await initializeAgent(key);
 
       // Offer biometrics if the device supports it
@@ -106,6 +109,9 @@ export default function Onboarding() {
           onPress={() => setStep('pin')}
         >
           <Text style={styles.buttonText}>{t('onboarding.setup_btn')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.skipBtn} onPress={() => router.push('/restore')}>
+          <Text style={styles.skipBtnText}>{t('backup.restore_link')}</Text>
         </TouchableOpacity>
       </View>
     );

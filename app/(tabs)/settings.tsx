@@ -6,7 +6,8 @@ import { useAgentState } from '../../src/agent/context';
 import { useUser } from '../../src/auth/UserContext';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../../src/auth/biometric';
 import { SUPPORTED_LANGS, setLanguagePreference, type Language } from '../../src/i18n';
-import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled } from '../../src/utils/storage';
+import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase } from '../../src/utils/storage';
+import { exportBackup } from '../../src/utils/backup';
 
 const Row = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.row}>
@@ -22,6 +23,9 @@ export default function Settings() {
   const [biometricsOn, setBiometricsOn] = useState(false);
   const [biometricsAvailable, setBiometricsAvailableState] = useState(false);
   const [holderDids, setHolderDids] = useState<string[]>([]);
+  const [recoveryPhrase, setRecoveryPhrase] = useState('');
+  const [phraseVisible, setPhraseVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const displayName = user ? (getUserDisplayName(user) ?? '') : '';
   const initials = displayName
@@ -30,12 +34,14 @@ export default function Settings() {
 
   useEffect(() => {
     (async () => {
-      const [enabled, support] = await Promise.all([
+      const [enabled, support, phrase] = await Promise.all([
         getBiometricsEnabled(),
         checkBiometricSupport(),
+        getRecoveryPhrase(),
       ]);
       setBiometricsOn(enabled);
       setBiometricsAvailableState(support.available);
+      if (phrase) setRecoveryPhrase(phrase);
     })();
   }, []);
 
@@ -70,6 +76,18 @@ export default function Settings() {
 
   const handleLanguage = async (lang: Language) => {
     await setLanguagePreference(lang);
+  };
+
+  const handleExportBackup = async () => {
+    if (agentState.status !== 'ready' || !recoveryPhrase) return;
+    setExporting(true);
+    try {
+      await exportBackup(agentState.agent, recoveryPhrase);
+    } catch {
+      Alert.alert(t('common.error'), t('backup.export_error'));
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -116,6 +134,37 @@ export default function Settings() {
         <Text style={styles.sectionTitle}>{t('settings.section_wallet')}</Text>
         <Row label={t('settings.row_name')} value={branding.appName} />
       </View>
+
+      {recoveryPhrase ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('backup.section_title')}</Text>
+
+          <View style={styles.phraseRow}>
+            <Text style={styles.rowLabel}>{t('backup.recovery_phrase_row')}</Text>
+            <TouchableOpacity onPress={() => setPhraseVisible((v) => !v)}>
+              <Text style={[styles.rowValue, { color: branding.primaryColor }]}>
+                {phraseVisible ? t('backup.hide_phrase') : t('backup.show_phrase')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {phraseVisible && (
+            <View style={styles.phraseBox}>
+              <Text style={styles.phraseText}>{recoveryPhrase}</Text>
+              <Text style={styles.phraseWarning}>{t('backup.phrase_warning')}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.exportBtn, { backgroundColor: branding.primaryColor }, exporting && styles.exportBtnDisabled]}
+            onPress={handleExportBackup}
+            disabled={exporting}
+          >
+            <Text style={styles.exportBtnText}>
+              {exporting ? t('backup.exporting') : t('backup.export_btn')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {holderDids.length > 0 && (
         <View style={styles.section}>
@@ -192,4 +241,11 @@ const styles = StyleSheet.create({
   didValue: { fontSize: 13, color: '#374151', fontFamily: 'monospace' },
   didShareIcon: { fontSize: 16, color: '#9CA3AF', marginLeft: 8 },
   didHint: { fontSize: 11, color: '#9CA3AF', marginTop: 8 },
+  phraseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  phraseBox: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 14, marginTop: 12, marginBottom: 4 },
+  phraseText: { fontSize: 14, color: '#111827', lineHeight: 22, fontFamily: 'monospace' },
+  phraseWarning: { fontSize: 11, color: '#D97706', marginTop: 10, lineHeight: 16 },
+  exportBtn: { marginTop: 14, height: 46, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  exportBtnDisabled: { opacity: 0.5 },
+  exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });
