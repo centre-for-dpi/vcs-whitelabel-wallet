@@ -56,15 +56,11 @@ export async function exportBackup(_agent: WalletAgent, phrase: string): Promise
   const walletPath = `${RNFS.DocumentDirectoryPath}/.afj/wallet/${WALLET_ID}/sqlite.db`;
   const askarExportKey = await deriveAskarExportKey(phrase);
 
-  console.log('[exportBackup] wallet path:', walletPath);
-  console.log('[exportBackup] wallet file exists:', await RNFS.exists(walletPath));
-
   const sourceStore = await Store.open({
     uri: `sqlite://${walletPath}`,
     keyMethod: new StoreKeyMethod(KdfMethod.Argon2IMod),
     passKey: walletKey,
   });
-  console.log('[exportBackup] source store opened');
 
   await sourceStore.copyTo({
     recreate: true,
@@ -72,13 +68,11 @@ export async function exportBackup(_agent: WalletAgent, phrase: string): Promise
     keyMethod: new StoreKeyMethod(KdfMethod.Argon2IInt),
     passKey: askarExportKey,
   });
-  console.log('[exportBackup] copyTo done');
 
   await sourceStore.close();
 
   // Read the exported file as base64
   const askarData = await RNFS.readFile(exportPath, 'base64');
-  console.log('[exportBackup] askarData length:', askarData.length);
   await RNFS.unlink(exportPath);
 
   // Encrypt the whole payload with the recovery phrase (AES-256 via crypto-js)
