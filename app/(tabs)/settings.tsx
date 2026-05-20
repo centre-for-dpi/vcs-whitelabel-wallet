@@ -24,9 +24,10 @@ export default function Settings() {
   const [biometricsAvailable, setBiometricsAvailableState] = useState(false);
   const [holderDids, setHolderDids] = useState<string[]>([]);
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
-  const [phraseVisible, setPhraseVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [generatingPhrase, setGeneratingPhrase] = useState(false);
+  const [phraseToReveal, setPhraseToReveal] = useState('');
+  const [phraseModalVisible, setPhraseModalVisible] = useState(false);
 
   const [changePinVisible, setChangePinVisible] = useState(false);
   const [changePinStep, setChangePinStep] = useState<'verify' | 'new' | 'confirm'>('verify');
@@ -127,7 +128,8 @@ export default function Settings() {
       const phrase = await generateRecoveryPhrase();
       await saveRecoveryPhrase(phrase);
       setRecoveryPhrase(phrase);
-      setPhraseVisible(true);
+      setPhraseToReveal(phrase);
+      setPhraseModalVisible(true);
     } catch {
       Alert.alert(t('common.error'), t('backup.setup_phrase_error'));
     } finally {
@@ -207,20 +209,10 @@ export default function Settings() {
         <Text style={styles.sectionTitle}>{t('backup.section_title')}</Text>
         {recoveryPhrase ? (
           <>
-            <View style={styles.phraseRow}>
+            <View style={styles.row}>
               <Text style={styles.rowLabel}>{t('backup.recovery_phrase_row')}</Text>
-              <TouchableOpacity onPress={() => setPhraseVisible((v) => !v)}>
-                <Text style={[styles.rowValue, { color: branding.primaryColor }]}>
-                  {phraseVisible ? t('backup.hide_phrase') : t('backup.show_phrase')}
-                </Text>
-              </TouchableOpacity>
+              <Text style={[styles.rowValue, { color: '#16A34A' }]}>{t('backup.phrase_configured')}</Text>
             </View>
-            {phraseVisible && (
-              <View style={styles.phraseBox}>
-                <Text style={styles.phraseText}>{recoveryPhrase}</Text>
-                <Text style={styles.phraseWarning}>{t('backup.phrase_warning')}</Text>
-              </View>
-            )}
             <TouchableOpacity
               style={[styles.exportBtn, { backgroundColor: branding.primaryColor }, exporting && styles.exportBtnDisabled]}
               onPress={handleExportBackup}
@@ -292,6 +284,25 @@ export default function Settings() {
 
       <Text style={styles.footer}>{branding.appName} • Powered by Credo 0.6.3</Text>
     </ScrollView>
+
+    <Modal visible={phraseModalVisible} animationType="slide" transparent onRequestClose={() => {}}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{t('backup.phrase_modal_title')}</Text>
+          <Text style={styles.modalSubtitle}>{t('backup.phrase_modal_hint')}</Text>
+          <View style={styles.phraseBox}>
+            <Text style={styles.phraseText}>{phraseToReveal}</Text>
+            <Text style={styles.phraseWarning}>{t('backup.phrase_warning')}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.modalBtn, { backgroundColor: branding.primaryColor }]}
+            onPress={() => { setPhraseModalVisible(false); setPhraseToReveal(''); }}
+          >
+            <Text style={styles.modalBtnText}>{t('backup.phrase_modal_confirm')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
 
     <Modal visible={changePinVisible} animationType="slide" transparent onRequestClose={() => setChangePinVisible(false)}>
       <View style={styles.modalOverlay}>
