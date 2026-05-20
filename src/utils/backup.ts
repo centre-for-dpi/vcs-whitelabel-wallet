@@ -33,7 +33,8 @@ async function deriveAskarExportKey(phrase: string): Promise<string> {
 
 export async function generateRecoveryPhrase(): Promise<string> {
   const entropy = await Crypto.getRandomBytesAsync(16); // 128 bits → 12 words
-  return entropyToMnemonic(entropy as unknown as Uint8Array, wordlist);
+  // Wrap in new Uint8Array so @scure/bip39's instanceof check passes on native
+  return entropyToMnemonic(new Uint8Array(entropy), wordlist);
 }
 
 export async function exportBackup(agent: WalletAgent, phrase: string): Promise<void> {

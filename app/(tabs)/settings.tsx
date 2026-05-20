@@ -129,7 +129,7 @@ export default function Settings() {
       setRecoveryPhrase(phrase);
       setPhraseVisible(true);
     } catch {
-      Alert.alert(t('common.error'), t('backup.export_error'));
+      Alert.alert(t('common.error'), t('backup.setup_phrase_error'));
     } finally {
       setGeneratingPhrase(false);
     }

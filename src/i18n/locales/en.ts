@@ -164,6 +164,7 @@ const en = {
     phrase_warning: 'Write these 12 words down and keep them safe. Anyone with this phrase can restore your wallet.',
     setup_phrase_hint: 'Your wallet does not have a recovery phrase yet. Generate one to enable encrypted backups.',
     setup_phrase_btn: 'Set up recovery phrase',
+    setup_phrase_error: 'Could not generate recovery phrase. Please try again.',
     export_btn: 'Export encrypted backup',
     exporting: 'Exporting...',
     export_error: 'Failed to create backup. Please try again.',
