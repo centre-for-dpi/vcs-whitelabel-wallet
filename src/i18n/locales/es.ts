@@ -146,6 +146,9 @@ const es: Translation = {
     sd_legend: 'SD = divulgable selectivamente por presentación',
     revoked_badge: 'Revocada',
     checking_revocation: 'Verificando revocación...',
+    valid_badge: 'Válida',
+    issued_label: 'Emitida',
+    id_label: 'ID Credencial',
   },
   didcomm: {
     title: 'Credencial DIDComm',

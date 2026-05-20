@@ -144,6 +144,9 @@ const en = {
     sd_legend: 'SD = selectively disclosable per presentation',
     revoked_badge: 'Revoked',
     checking_revocation: 'Checking revocation...',
+    valid_badge: 'Valid',
+    issued_label: 'Issued',
+    id_label: 'Credential ID',
   },
   didcomm: {
     title: 'DIDComm Credential',

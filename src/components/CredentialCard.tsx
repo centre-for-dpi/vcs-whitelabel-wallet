@@ -1,53 +1,75 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { branding } from '../../branding.config';
 import type { CredentialEntry } from '../utils/credential';
-import { getExpiryStatus, daysUntilExpiry } from '../utils/credential';
+import { getExpiryStatus, daysUntilExpiry, issuerCardColor } from '../utils/credential';
 
 type Props = {
   entry: CredentialEntry;
   onPress: () => void;
 };
 
+function issuerInitials(issuer: string): string {
+  const words = issuer.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return words.slice(0, 2).map(w => w[0].toUpperCase()).join('');
+}
+
 export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
   const { t, i18n } = useTranslation();
   const status = getExpiryStatus(entry.expiryDate);
 
   const date = new Date(entry.issuanceDate).toLocaleDateString(i18n.language, {
-    year: 'numeric',
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
+    year: 'numeric',
   });
 
-  const accentColor =
-    status === 'expired' ? '#DC2626' :
-    status === 'expiring' ? '#D97706' :
-    branding.primaryColor;
+  const badgeLabel =
+    status === 'expired'
+      ? t('credentials.expired_badge').toUpperCase()
+      : status === 'expiring'
+      ? t('credentials.expiring_badge', { days: daysUntilExpiry(entry.expiryDate!) }).toUpperCase()
+      : t('credentials.valid_badge').toUpperCase();
+
+  const badgeBg =
+    status === 'expired' ? 'rgba(127,29,29,0.8)' :
+    status === 'expiring' ? 'rgba(120,53,15,0.8)' :
+    'rgba(20,83,45,0.8)';
+
+  const badgeAccent =
+    status === 'expired' ? '#fca5a5' :
+    status === 'expiring' ? '#fcd34d' :
+    '#86efac';
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
-      <View style={[styles.accent, { backgroundColor: accentColor }]} />
-      <View style={styles.body}>
-        <View style={styles.topRow}>
-          <Text style={[styles.type, { color: branding.textColor }]} numberOfLines={1}>
-            {entry.type}
-          </Text>
-          {status === 'expired' && (
-            <View style={styles.badgeExpired}>
-              <Text style={styles.badgeText}>{t('credentials.expired_badge')}</Text>
-            </View>
-          )}
-          {status === 'expiring' && entry.expiryDate && (
-            <View style={styles.badgeExpiring}>
-              <Text style={styles.badgeText}>
-                {t('credentials.expiring_badge', { days: daysUntilExpiry(entry.expiryDate) })}
-              </Text>
-            </View>
-          )}
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: issuerCardColor(entry.issuer) }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.topRow}>
+        <View style={styles.iconBox}>
+          <Text style={styles.iconText}>{issuerInitials(entry.issuer)}</Text>
         </View>
-        <Text style={styles.issuer} numberOfLines={1}>{entry.issuer}</Text>
-        <Text style={styles.date}>{date}</Text>
+        <View style={styles.issuerBlock}>
+          <Text style={styles.issuerName} numberOfLines={1}>
+            {entry.issuer.toUpperCase()}
+          </Text>
+        </View>
+        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+          <View style={[styles.badgeDot, { backgroundColor: badgeAccent }]} />
+          <Text style={[styles.badgeText, { color: badgeAccent }]}>{badgeLabel}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.credentialName} numberOfLines={2}>
+        {entry.type}
+      </Text>
+
+      <View style={styles.bottomRow}>
+        <Text style={styles.bottomLabel}>{t('credentials.issued_label').toUpperCase()}</Text>
+        <Text style={styles.bottomValue}>{date}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -55,60 +77,85 @@ export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    backgroundColor: branding.secondaryColor,
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: 'hidden',
+    borderRadius: 16,
+    marginBottom: 14,
+    padding: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  accent: {
-    width: 5,
-  },
-  body: {
-    flex: 1,
-    padding: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 7,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+    marginBottom: 18,
+    gap: 10,
   },
-  type: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+  iconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  issuer: {
+  iconText: {
     fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 4,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.5,
   },
-  date: {
-    fontSize: 12,
-    color: '#9CA3AF',
+  issuerBlock: {
+    flex: 1,
   },
-  badgeExpired: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  issuerName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 0.8,
   },
-  badgeExpiring: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 5,
+  },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#374151',
+    letterSpacing: 0.5,
+  },
+  credentialName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 22,
+    letterSpacing: 0.2,
+    lineHeight: 28,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bottomLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 0.8,
+  },
+  bottomValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.8,
   },
 });

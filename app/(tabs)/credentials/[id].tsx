@@ -22,6 +22,7 @@ import {
   fromW3cRecord,
   fromW3cV2Record,
   getExpiryStatus,
+  issuerCardColor,
 } from '../../../src/utils/credential';
 import { checkRevocationStatus, type RevocationStatus } from '../../../src/agent/revocation';
 
@@ -127,7 +128,7 @@ export default function CredentialDetail() {
     revocationStatus === 'revoked' ? '#DC2626' :
     expiryStatus === 'expired' ? '#DC2626' :
     expiryStatus === 'expiring' ? '#D97706' :
-    branding.primaryColor;
+    issuerCardColor(entry.issuer);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

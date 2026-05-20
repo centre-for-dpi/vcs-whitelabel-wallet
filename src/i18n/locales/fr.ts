@@ -146,6 +146,9 @@ const fr: Translation = {
     sd_legend: 'SD = divulgation sélective par présentation',
     revoked_badge: 'Révoqué',
     checking_revocation: 'Vérification de la révocation...',
+    valid_badge: 'Valide',
+    issued_label: 'Émis',
+    id_label: 'ID Justificatif',
   },
   didcomm: {
     title: 'Justificatif DIDComm',
