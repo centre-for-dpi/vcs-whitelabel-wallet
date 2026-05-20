@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, Share, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, Share, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
 import { useAgentState } from '../../src/agent/context';
 import { useUser } from '../../src/auth/UserContext';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../../src/auth/biometric';
 import { SUPPORTED_LANGS, setLanguagePreference, type Language } from '../../src/i18n';
-import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase } from '../../src/utils/storage';
+import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase, verifyPin, savePin } from '../../src/utils/storage';
 import { exportBackup } from '../../src/utils/backup';
 
 const Row = ({ label, value }: { label: string; value: string }) => (
@@ -26,6 +26,14 @@ export default function Settings() {
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [phraseVisible, setPhraseVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  const [changePinVisible, setChangePinVisible] = useState(false);
+  const [changePinStep, setChangePinStep] = useState<'verify' | 'new' | 'confirm'>('verify');
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmNewPin, setConfirmNewPin] = useState('');
+  const [changePinError, setChangePinError] = useState('');
+  const [changePinLoading, setChangePinLoading] = useState(false);
 
   const displayName = user ? (getUserDisplayName(user) ?? '') : '';
   const initials = displayName
@@ -78,6 +86,40 @@ export default function Settings() {
     await setLanguagePreference(lang);
   };
 
+  const openChangePin = () => {
+    setChangePinStep('verify');
+    setCurrentPin('');
+    setNewPin('');
+    setConfirmNewPin('');
+    setChangePinError('');
+    setChangePinVisible(true);
+  };
+
+  const handleChangePinVerify = async () => {
+    setChangePinLoading(true);
+    const ok = await verifyPin(currentPin);
+    setChangePinLoading(false);
+    if (!ok) {
+      setChangePinError(t('settings.change_pin_wrong'));
+      setCurrentPin('');
+      return;
+    }
+    setChangePinError('');
+    setChangePinStep('new');
+  };
+
+  const handleChangePinConfirm = async () => {
+    if (newPin !== confirmNewPin) {
+      setChangePinError(t('onboarding.pin_mismatch'));
+      return;
+    }
+    setChangePinLoading(true);
+    await savePin(newPin);
+    setChangePinLoading(false);
+    setChangePinVisible(false);
+    Alert.alert('', t('settings.change_pin_success'));
+  };
+
   const handleExportBackup = async () => {
     if (agentState.status !== 'ready' || !recoveryPhrase) return;
     setExporting(true);
@@ -90,7 +132,13 @@ export default function Settings() {
     }
   };
 
+  const changePinActiveValue =
+    changePinStep === 'verify' ? currentPin : changePinStep === 'new' ? newPin : confirmNewPin;
+  const changePinSetter =
+    changePinStep === 'verify' ? setCurrentPin : changePinStep === 'new' ? setNewPin : setConfirmNewPin;
+
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {user && (
         <View style={styles.section}>
@@ -128,6 +176,10 @@ export default function Settings() {
             <Text style={styles.rowValueMuted}>{t('settings.biometrics_unavailable')}</Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity style={styles.row} onPress={openChangePin}>
+          <Text style={styles.rowLabel}>{t('settings.change_pin_row')}</Text>
+          <Text style={styles.rowValueMuted}>›</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -210,6 +262,56 @@ export default function Settings() {
 
       <Text style={styles.footer}>{branding.appName} • Powered by Credo 0.6.3</Text>
     </ScrollView>
+
+    <Modal visible={changePinVisible} animationType="slide" transparent onRequestClose={() => setChangePinVisible(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{t('settings.change_pin_title')}</Text>
+          <Text style={styles.modalSubtitle}>
+            {changePinStep === 'verify'
+              ? t('settings.change_pin_current')
+              : changePinStep === 'new'
+              ? t('settings.change_pin_new')
+              : t('settings.change_pin_confirm')}
+          </Text>
+          <TextInput
+            style={styles.modalPinInput}
+            value={changePinActiveValue}
+            onChangeText={changePinSetter}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={6}
+            placeholder="••••••"
+            placeholderTextColor="#9CA3AF"
+            autoFocus
+          />
+          {changePinError ? <Text style={styles.modalError}>{changePinError}</Text> : null}
+          {changePinLoading ? (
+            <ActivityIndicator size="large" color={branding.primaryColor} style={{ marginTop: 16 }} />
+          ) : (
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: branding.primaryColor }, changePinActiveValue.length < 6 && styles.modalBtnDisabled]}
+              disabled={changePinActiveValue.length < 6}
+              onPress={
+                changePinStep === 'verify'
+                  ? handleChangePinVerify
+                  : changePinStep === 'new'
+                  ? () => { setChangePinError(''); setChangePinStep('confirm'); }
+                  : handleChangePinConfirm
+              }
+            >
+              <Text style={styles.modalBtnText}>
+                {changePinStep === 'confirm' ? t('settings.change_pin_save') : t('onboarding.next')}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setChangePinVisible(false)}>
+            <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -248,4 +350,15 @@ const styles = StyleSheet.create({
   exportBtn: { marginTop: 14, height: 46, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   exportBtnDisabled: { opacity: 0.5 },
   exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 48 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: 6 },
+  modalSubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 24 },
+  modalPinInput: { width: 180, height: 56, borderWidth: 2, borderColor: '#E5E7EB', borderRadius: 12, textAlign: 'center', fontSize: 24, letterSpacing: 8, marginBottom: 12, color: '#111827', alignSelf: 'center' },
+  modalError: { color: '#DC2626', fontSize: 13, textAlign: 'center', marginBottom: 8 },
+  modalBtn: { height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
+  modalBtnDisabled: { opacity: 0.4 },
+  modalBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  modalCancelBtn: { height: 44, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
+  modalCancelText: { fontSize: 15, color: '#6B7280' },
 });
