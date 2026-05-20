@@ -140,7 +140,8 @@ export default function Settings() {
     setExporting(true);
     try {
       await exportBackup(agentState.agent, recoveryPhrase);
-    } catch {
+    } catch (e) {
+      console.error('[exportBackup] failed:', e);
       Alert.alert(t('common.error'), t('backup.export_error'));
     } finally {
       setExporting(false);
