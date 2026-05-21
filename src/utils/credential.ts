@@ -75,10 +75,62 @@ export function daysUntilExpiry(expiryDate: string): number {
   return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Decodes a compact SD-JWT string (header~disc1~disc2~...) into payload + prettyClaims
+ * without going through Credo's holder-binding validation. Used as a fallback for
+ * issuers (e.g. INJI Certify) that put a non-DID cnf.kid in the credential, which
+ * Credo rejects when decoding via firstCredential.
+ */
+function decodeSdJwtManually(compact: string): {
+  payload: Record<string, unknown>;
+  prettyClaims: Record<string, unknown>;
+} {
+  const b64decode = (s: string) => {
+    try { return JSON.parse(atob(s.replace(/-/g, '+').replace(/_/g, '/'))); } catch { return {}; }
+  };
+  const parts = compact.split('~');
+  const payload = b64decode(parts[0].split('.')[1] ?? '') as Record<string, unknown>;
+  const prettyClaims: Record<string, unknown> = { ...payload };
+  // Apply SD-JWT disclosures: each is base64url([salt, key, value])
+  for (let i = 1; i < parts.length; i++) {
+    if (!parts[i]) continue;
+    const disc = b64decode(parts[i]);
+    if (Array.isArray(disc) && disc.length === 3) prettyClaims[disc[1] as string] = disc[2];
+  }
+  return { payload, prettyClaims };
+}
+
+/** Gets the compact SD-JWT string directly from storage without calling firstCredential. */
+export function getSdJwtCompact(record: SdJwtVcRecord): string {
+  return (record as unknown as { credentialInstances?: Array<{ compactSdJwtVc?: string }> })
+    .credentialInstances?.[0]?.compactSdJwtVc ?? '';
+}
+
+/**
+ * Safely gets prettyClaims from a record without throwing for non-DID cnf.kid issuers (e.g. INJI).
+ * Falls back to manual SD-JWT decode when Credo's firstCredential throws.
+ */
+export function getSdJwtPrettyClaims(record: SdJwtVcRecord): Record<string, unknown> {
+  try {
+    return record.firstCredential.prettyClaims as Record<string, unknown>;
+  } catch {
+    return decodeSdJwtManually(getSdJwtCompact(record)).prettyClaims;
+  }
+}
+
 export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
-  const sdJwtVc = record.firstCredential;
-  const payload = sdJwtVc.payload as Record<string, unknown>;
-  const prettyClaims = sdJwtVc.prettyClaims as Record<string, unknown>;
+  let payload: Record<string, unknown>;
+  let prettyClaims: Record<string, unknown>;
+  try {
+    const sdJwtVc = record.firstCredential;
+    payload = sdJwtVc.payload as Record<string, unknown>;
+    prettyClaims = sdJwtVc.prettyClaims as Record<string, unknown>;
+  } catch {
+    // Fallback for issuers with non-DID cnf.kid (e.g. INJI) — decode manually
+    const compact = (record as unknown as { credentialInstances?: Array<{ compactSdJwtVc?: string }> })
+      .credentialInstances?.[0]?.compactSdJwtVc ?? '';
+    ({ payload, prettyClaims } = decodeSdJwtManually(compact));
+  }
 
   const vct = (payload.vct as string) ?? 'Credential';
   const rawIssuer = typeof payload.iss === 'string' ? payload.iss : '';

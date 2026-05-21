@@ -19,7 +19,7 @@ import i18n from '../src/i18n';
 import { normalizeAuthorizationRequestUrl, isHttpOid4VpRequest, resolveHttpOid4VpRequest } from '../src/agent/oid4vp/normalizeRequest';
 import { selectCredentialsForRequest } from '../src/agent/oid4vp/selectCredentials';
 import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
-import { fromSdJwtRecord } from '../src/utils/credential';
+import { fromSdJwtRecord, getSdJwtCompact, getSdJwtPrettyClaims } from '../src/utils/credential';
 import { addPresentation } from '../src/utils/presentationHistory';
 
 type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
@@ -116,7 +116,7 @@ export default function Present() {
             ?.vct_values as string[] | undefined) ?? [];
           const matched = vcts.length > 0
             ? allSdJwt.find((rec) => {
-                const vct = (rec.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
+                const vct = getSdJwtPrettyClaims(rec).vct as string | undefined;
                 return vct && vcts.includes(vct);
               })
             : allSdJwt[0];
@@ -188,7 +188,9 @@ export default function Present() {
     try {
       if (format === 'sdjwt') {
         const record = await agent.sdJwtVc.getById(id);
-        setCompactSdJwt(record.firstCredential.compact);
+        const compact = getSdJwtCompact(record);
+        // QR codes hold ~2,953 bytes max; large SD-JWTs (e.g. INJI) exceed this limit.
+        setCompactSdJwt(compact && compact.length <= 2500 ? compact : null);
       }
       setStep('qr');
     } catch (e: unknown) {

@@ -21,23 +21,39 @@ import { storeOid4VciCredential, formatConfigId } from '../src/agent/oid4vci/sto
 
 const PRE_AUTH_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
 
-async function resolveHttpCredentialOffer(offerUri: string): Promise<Record<string, unknown>> {
-  console.log('[receive] resolveHttpCredentialOffer — offer URI:', offerUri);
-  const offerResp = await fetch(offerUri);
-  if (!offerResp.ok) {
-    if (offerResp.status === 404 || offerResp.status === 410) {
-      throw new Error(i18n.t('receive.offer_expired'));
-    }
-    throw new Error(i18n.t('receive.fetch_error', { status: offerResp.status }));
+// Fetches a credential_offer_uri once and unwraps MOSIP/INJI envelope if present.
+async function fetchAndNormalizeOffer(offerUri: string): Promise<Record<string, unknown>> {
+  console.log('[receive] fetchAndNormalizeOffer — offer URI:', offerUri);
+  const resp = await fetch(offerUri);
+  if (!resp.ok) {
+    if (resp.status === 404 || resp.status === 410) throw new Error(i18n.t('receive.offer_expired'));
+    throw new Error(i18n.t('receive.fetch_error', { status: resp.status }));
   }
-  const offerPayload = await offerResp.json() as Record<string, unknown>;
+  let json = await resp.json() as Record<string, unknown>;
+  // MOSIP/INJI envelope: { responseTime: string, response: {...} | null, errors: [] }
+  if (typeof json.responseTime === 'string') {
+    const errors = json.errors as Array<{ errorCode?: string; errorMessage?: string }> | undefined;
+    if (errors && errors.length > 0) {
+      const err = errors[0];
+      if (err.errorCode === 'credential_offer_not_found') throw new Error(i18n.t('receive.offer_expired'));
+      throw new Error(err.errorMessage ?? 'INJI error');
+    }
+    if (json.response && typeof json.response === 'object' && !Array.isArray(json.response)) {
+      console.log('[receive] fetchAndNormalizeOffer — unwrapping MOSIP response envelope');
+      json = json.response as Record<string, unknown>;
+    }
+  }
+  return json;
+}
 
+// Resolves issuer metadata and builds the full offer object from a pre-fetched offer payload.
+async function resolveFromOfferPayload(offerPayload: Record<string, unknown>): Promise<Record<string, unknown>> {
   const issuerUrl = (offerPayload.credential_issuer as string | undefined)?.replace(/\/$/, '');
   if (!issuerUrl) throw new Error('credential_issuer missing from offer payload');
 
-  console.log('[receive] resolveHttpCredentialOffer — credential_issuer:', issuerUrl);
+  console.log('[receive] resolveFromOfferPayload — credential_issuer:', issuerUrl);
   const wellKnownResp = await fetch(`${issuerUrl}/.well-known/openid-credential-issuer`);
-  console.log('[receive] resolveHttpCredentialOffer — well-known status:', wellKnownResp.status);
+  console.log('[receive] resolveFromOfferPayload — well-known status:', wellKnownResp.status);
   if (!wellKnownResp.ok) throw new Error(`Failed to fetch issuer metadata (${wellKnownResp.status})`);
   const issuerMeta = await wellKnownResp.json() as Record<string, unknown>;
 
@@ -99,24 +115,34 @@ export default function Receive() {
         ? url.slice(url.indexOf('credential_offer_uri=') + 'credential_offer_uri='.length).split('&')[0]
         : '';
       const offerUri = decodeURIComponent(offerUriParam);
-      const isHttpOffer = !branding.requireHttps && offerUri.startsWith('http://');
 
       let rawOffer: OpenId4VciResolvedCredentialOffer;
-      if (isHttpOffer) {
-        rawOffer = await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer;
-      } else {
-        try {
-          rawOffer = await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
-        } catch (e) {
-          // The offer_uri may be HTTPS but the returned payload contains an
-          // http:// credential_issuer that Credo rejects. Fall back to the
-          // manual resolver (which skips the https constraint) when allowed.
-          if (!branding.requireHttps && e instanceof Error && e.message.includes('Url must be an https://')) {
-            rawOffer = await resolveHttpCredentialOffer(offerUri) as unknown as OpenId4VciResolvedCredentialOffer;
-          } else {
-            throw e;
+      if (offerUri) {
+        // Pre-fetch the offer URI ourselves first so:
+        //  a) MOSIP/INJI envelope wrapping is resolved before Credo sees the payload
+        //  b) Single-use URIs are never consumed twice (Credo fetch + our fallback fetch)
+        const offerPayload = await fetchAndNormalizeOffer(offerUri);
+        const issuerIsHttp = !branding.requireHttps &&
+          (offerPayload.credential_issuer as string | undefined)?.startsWith('http://');
+
+        if (issuerIsHttp) {
+          rawOffer = await resolveFromOfferPayload(offerPayload) as unknown as OpenId4VciResolvedCredentialOffer;
+        } else {
+          // Re-encode as inline credential_offer so Credo resolves metadata without re-fetching the URI
+          const inlineUrl = `openid-credential-offer://?credential_offer=${encodeURIComponent(JSON.stringify(offerPayload))}`;
+          try {
+            rawOffer = await agent.modules.openid4vc.holder.resolveCredentialOffer(inlineUrl);
+          } catch (e) {
+            if (!branding.requireHttps && e instanceof Error && e.message.includes('Url must be an https://')) {
+              rawOffer = await resolveFromOfferPayload(offerPayload) as unknown as OpenId4VciResolvedCredentialOffer;
+            } else {
+              throw e;
+            }
           }
         }
+      } else {
+        // Inline credential_offer param (no URI to fetch) — Credo handles it directly
+        rawOffer = await agent.modules.openid4vc.holder.resolveCredentialOffer(url);
       }
 
       const offer = normalizeOffer(rawOffer);

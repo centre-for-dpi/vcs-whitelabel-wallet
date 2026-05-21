@@ -2,6 +2,7 @@ import { ClaimFormat, SdJwtVcRecord } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
 import i18n from '../../i18n';
+import { getSdJwtPrettyClaims } from '../../utils/credential';
 
 type PexEntry = {
   claimFormat: ClaimFormat;
@@ -43,7 +44,7 @@ export async function selectCredentialsForRequest(
 
     console.log('[oid4vp] wallet sdJwt count:', allSdJwt.length);
     allSdJwt.forEach((rec, i) => {
-      const pc = rec.firstCredential.prettyClaims as Record<string, unknown>;
+      const pc = getSdJwtPrettyClaims(rec);
       const tags = rec.getTags() as Record<string, unknown>;
       console.log(
         `[oid4vp] sdJwt[${i}] id:${rec.id}`,
@@ -67,7 +68,7 @@ export async function selectCredentialsForRequest(
         throw new Error(msg);
       }
 
-      const pc = matched.firstCredential.prettyClaims as Record<string, unknown>;
+      const pc = getSdJwtPrettyClaims(matched);
       console.log('[oid4vp] matched descriptor', descriptorId, '→ record', matched.id);
       built[descriptorId] = [
         { claimFormat: ClaimFormat.SdJwtDc, credentialRecord: matched, disclosedPayload: pc },
@@ -88,7 +89,7 @@ export async function selectCredentialsForRequest(
 
       const allSdJwt = await agent.sdJwtVc.getAll();
       const walletVcts = allSdJwt
-        .map((r) => (r.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined)
+        .map((r) => getSdJwtPrettyClaims(r).vct as string | undefined)
         .filter(Boolean)
         .map((v) => v!.split('/').pop() ?? v!);
 
@@ -128,7 +129,7 @@ function matchesVct(record: SdJwtVcRecord, vctPattern: string | undefined): bool
     try { return new RegExp(vctPattern).test(v); } catch { return v === vctPattern; }
   };
 
-  const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
+  const pc = getSdJwtPrettyClaims(record);
 
   // Conformant dc+sd-jwt: vct at top level
   const topVct = pc.vct as string | undefined;

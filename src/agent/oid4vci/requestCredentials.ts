@@ -58,8 +58,8 @@ export type CredentialResult = DcSdJwtResult | ManualJwtResult | CredoResult;
 
 /**
  * Returns true when the issuer is known to produce non-conformant credential responses
- * that bypass Credo's strict JWT/W3C validation. Detection is based on the credential
- * endpoint URL path (e.g. /draft13, /draft14).
+ * or requires a custom proof JWT format that Credo's standard path doesn't handle.
+ * Detection is based on the credential endpoint URL path.
  */
 function isLegacyEndpoint(offer: Record<string, unknown>): boolean {
   const meta = offer.metadata as Record<string, unknown> | undefined;
@@ -68,40 +68,83 @@ function isLegacyEndpoint(offer: Record<string, unknown>): boolean {
     issuerMeta?.credential_endpoint as string | undefined,
     issuerMeta?.credential_issuer as string | undefined,
   ];
-  // HTTP issuers also use the manual path: Credo's internal proof JWT validator
-  // rejects http:// in the `aud` claim regardless of the requireHttps app setting.
-  return urls.some((u) => u?.includes('/draft13') || u?.includes('/draft14') || u?.startsWith('http://'));
+  // HTTP issuers: Credo's internal proof JWT validator rejects http:// in the `aud` claim.
+  // /draft13, /draft14: legacy walt.id / CREDEBL style endpoints.
+  // /v1/certify/: INJI Certify — Credo's proof JWT (no `iss` claim) fails INJI's parser.
+  return urls.some(
+    (u) =>
+      u?.includes('/draft13') ||
+      u?.includes('/draft14') ||
+      u?.startsWith('http://') ||
+      u?.includes('/v1/certify/'),
+  );
+}
+
+type ProofOptions = { algorithm: string; useJwk: boolean };
+
+// Algorithms supported by the Askar KMS backend in React Native (no RSA).
+const KMS_SUPPORTED_ALGS = ['EdDSA', 'ES256', 'ES256K', 'ES384', 'ES512'];
+
+function proofOptionsFromConfig(config: Record<string, unknown>): ProofOptions {
+  const proofJwt = (config.proof_types_supported as Record<string, unknown> | undefined)
+    ?.jwt as Record<string, unknown> | undefined;
+  const issuerAlgs = (proofJwt?.proof_signing_alg_values_supported as string[] | undefined) ?? [];
+  const bindingMethods = config.cryptographic_binding_methods_supported as string[] | undefined;
+  // Pick the first issuer algorithm that our KMS can handle; fall back to EdDSA.
+  const algorithm = issuerAlgs.find((a) => KMS_SUPPORTED_ALGS.includes(a)) ?? 'EdDSA';
+  return {
+    algorithm,
+    useJwk: bindingMethods?.includes('jwk') ?? false,
+  };
 }
 
 /**
  * Builds the OID4VCI proof JWT for a given key and nonce.
+ * Uses JWK binding (jwk header) when requested, DID binding otherwise.
  */
 async function buildProofJwt(
   agent: WalletAgent,
   issuerUrl: string,
   cNonce: string,
+  opts: ProofOptions = { algorithm: 'EdDSA', useJwk: false },
 ): Promise<{ proofJwt: string; keyId: string }> {
   const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
+  const { algorithm, useJwk } = opts;
+
+  if (useJwk) {
+    const { publicJwk, keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm });
+    // Strip Credo-internal fields (kid, key_ops, use, ext) — INJI's Nimbus parser rejects
+    // a jwk header parameter that contains non-cryptographic metadata fields.
+    const { kid: _kid, key_ops: _ko, use: _use, ext: _ext, ...cleanJwk } =
+      publicJwk as Record<string, unknown>;
+    const h64 = TypedArrayEncoder.toBase64URL(
+      TypedArrayEncoder.fromString(JSON.stringify({ alg: algorithm, jwk: cleanJwk, typ: 'openid4vci-proof+jwt' })),
+    );
+    const p64 = TypedArrayEncoder.toBase64URL(
+      TypedArrayEncoder.fromString(
+        JSON.stringify({ nonce: cNonce, aud: issuerUrl, iat: Math.floor(Date.now() / 1000) }),
+      ),
+    );
+    const { signature } = await kms.sign({ keyId, algorithm, data: TypedArrayEncoder.fromString(`${h64}.${p64}`) });
+    return { proofJwt: `${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`, keyId };
+  }
+
   const didsApi = agent.dependencyManager.resolve(DidsApi);
-  const { keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm: 'EdDSA' });
+  const { keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm });
   const didResult = await didsApi.create({ method: 'key', options: { keyId } });
   const vmEntry = didResult.didState.didDocument?.verificationMethod?.[0];
   const vmId = typeof vmEntry === 'string' ? vmEntry : vmEntry?.id;
   if (!vmId) throw new Error('No se pudo crear el did:key para la credencial.');
 
   const h64 = TypedArrayEncoder.toBase64URL(
-    TypedArrayEncoder.fromString(JSON.stringify({ alg: 'EdDSA', kid: vmId, typ: 'openid4vci-proof+jwt' })),
+    TypedArrayEncoder.fromString(JSON.stringify({ alg: algorithm, kid: vmId, typ: 'openid4vci-proof+jwt' })),
   );
   const p64 = TypedArrayEncoder.toBase64URL(
     TypedArrayEncoder.fromString(
       JSON.stringify({ nonce: cNonce, aud: issuerUrl, iat: Math.floor(Date.now() / 1000) }),
     ),
   );
-  const { signature } = await kms.sign({
-    keyId,
-    algorithm: 'EdDSA',
-    data: TypedArrayEncoder.fromString(`${h64}.${p64}`),
-  });
+  const { signature } = await kms.sign({ keyId, algorithm, data: TypedArrayEncoder.fromString(`${h64}.${p64}`) });
   return { proofJwt: `${h64}.${p64}.${TypedArrayEncoder.toBase64URL(signature)}`, keyId };
 }
 
@@ -134,14 +177,17 @@ export async function requestOid4VciCredentials(
   for (const [configId, config] of configs) {
     const format = config.format as string;
 
-    const displayName = (config.display as Array<Record<string, string>> | undefined)?.[0]?.name;
+    const displayName =
+      (config.display as Array<Record<string, string>> | undefined)?.[0]?.name ??
+      ((config.credential_metadata as Record<string, unknown> | undefined)
+        ?.display as Array<Record<string, string>> | undefined)?.[0]?.name;
 
     if (format === 'dc+sd-jwt' && legacy) {
       // ── dc+sd-jwt on legacy endpoints: manual POST ────────────────────────────
       // Some issuers (e.g. CREDEBL) advertise dc+sd-jwt in metadata but only accept
       // vc+sd-jwt on the credential endpoint. Try dc+sd-jwt first, fall back to vc+sd-jwt.
       const vct = config.vct as string;
-      const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce);
+      const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce, proofOptionsFromConfig(config));
 
       const tryFormat = async (fmt: string) =>
         fetchWithTimeout(credentialEndpoint, {
@@ -179,7 +225,10 @@ export async function requestOid4VciCredentials(
       // claims" for these issuers because their credential response is non-conformant.
       const credDef = config.credential_definition as Record<string, unknown> | undefined;
       const types = (credDef?.type as string[] | undefined) ?? [];
-      const credentialType = types.filter((t) => t !== 'VerifiableCredential').pop() ?? configId;
+      const configVct = (format === 'vc+sd-jwt' || format === 'dc+sd-jwt')
+        ? (config.vct as string | undefined)?.split('/').pop()
+        : undefined;
+      const credentialType = types.filter((t) => t !== 'VerifiableCredential').pop() ?? configVct ?? configId;
 
       const requestBody: Record<string, unknown> = { format, proof: {} };
       if (format === 'vc+sd-jwt' && config.vct) {
@@ -188,7 +237,7 @@ export async function requestOid4VciCredentials(
         requestBody.credential_definition = credDef;
       }
 
-      const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce);
+      const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce, proofOptionsFromConfig(config));
       requestBody.proof = { proof_type: 'jwt', jwt: proofJwt };
 
       log('[oid4vci] POST', format, '(legacy) — configId:', configId);

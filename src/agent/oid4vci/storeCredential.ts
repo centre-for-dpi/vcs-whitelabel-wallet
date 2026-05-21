@@ -58,7 +58,7 @@ export async function storeOid4VciCredential(
     });
     const stored = await agent.sdJwtVc.store({ record });
     stored.setTag('issuerName', meta.issuerName);
-    stored.setTag('credentialName', displayName ?? formatConfigId(configId));
+    stored.setTag('credentialName', displayName ?? formatConfigId(credentialType));
     stored.setTag('credentialVct', credentialType);
     stored.setTag('holderKeyId', keyId);
     await agent.sdJwtVc.update(stored);

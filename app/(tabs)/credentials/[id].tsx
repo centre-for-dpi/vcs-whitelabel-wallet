@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { SdJwtVcRecord } from '@credo-ts/core';
+import { SdJwtVcRepository } from '@credo-ts/core';
 import { branding } from '../../../branding.config';
 import { useAgentState } from '../../../src/agent/context';
 import {
@@ -41,10 +42,20 @@ export default function CredentialDetail() {
         if (format === 'sdjwt') {
           const record = await agent.sdJwtVc.getById(id);
           setEntry(fromSdJwtRecord(record));
-          const compact = (record as SdJwtVcRecord).firstCredential.compact;
-          checkRevocationStatus(compact)
-            .then(setRevocationStatus)
-            .catch(() => setRevocationStatus('unknown'));
+          let compact: string | undefined;
+          try {
+            compact = (record as SdJwtVcRecord).firstCredential.compact;
+          } catch {
+            compact = (record as unknown as { credentialInstances?: Array<{ compactSdJwtVc?: string }> })
+              .credentialInstances?.[0]?.compactSdJwtVc;
+          }
+          if (compact) {
+            checkRevocationStatus(compact)
+              .then(setRevocationStatus)
+              .catch(() => setRevocationStatus('unknown'));
+          } else {
+            setRevocationStatus('unknown');
+          }
         } else {
           try {
             const record = await agent.w3cV2Credentials.getById(id);
@@ -81,7 +92,13 @@ export default function CredentialDetail() {
     const { agent } = agentState;
     try {
       if (format === 'sdjwt') {
-        await agent.sdJwtVc.deleteById(entry.id);
+        try {
+          await agent.sdJwtVc.deleteById(entry.id);
+        } catch {
+          // Fallback: delete directly via repository in case the service layer throws
+          const repo = agent.dependencyManager.resolve(SdJwtVcRepository);
+          await repo.deleteById(agent.context, entry.id);
+        }
       } else {
         try {
           await agent.w3cV2Credentials.deleteById(entry.id);
@@ -89,8 +106,8 @@ export default function CredentialDetail() {
           await agent.w3cCredentials.deleteById(entry.id);
         }
       }
-      router.back();
-    } catch { /* ignore */ }
+    } catch { /* ignore — navigate back regardless */ }
+    router.back();
   };
 
   if (!entry) {

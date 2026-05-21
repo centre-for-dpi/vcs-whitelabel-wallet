@@ -1,4 +1,5 @@
 import { ClaimFormat, Kms, SdJwtVcRecord, TypedArrayEncoder } from '@credo-ts/core';
+import { getSdJwtCompact, getSdJwtPrettyClaims } from '../../utils/credential';
 import * as ExpoCrypto from 'expo-crypto';
 import type { WalletAgent } from '../setup';
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
@@ -14,10 +15,11 @@ type MatchedItem = {
   pdFormat: string;       // format key from the PD descriptor (e.g. 'vc+sd-jwt')
   record: SdJwtVcRecord;
   compact: string;
-  isConformant: boolean;  // prettyClaims.vct is defined → Credo can handle
+  isConformant: boolean;  // true only when Credo can decode firstCredential without throwing
   hasDisclosures: boolean;
   holderKeyId?: string;
   holderDid?: string;
+  holderAlg: string;      // signing algorithm for KB-JWT (from cnf.jwk or EdDSA default)
 };
 
 /**
@@ -64,7 +66,7 @@ export async function presentCredentials(
     if (matched.every((m) => m.isConformant)) {
       const built: Record<string, Array<{ claimFormat: ClaimFormat; credentialRecord: SdJwtVcRecord; disclosedPayload: Record<string, unknown> }>> = {};
       for (const m of matched) {
-        const rawPayload = m.record.firstCredential.prettyClaims as Record<string, unknown>;
+        const rawPayload = getSdJwtPrettyClaims(m.record);
         const disclosedPayload = excludedFields
           ? Object.fromEntries(Object.entries(rawPayload).filter(([k]) => !excludedFields.has(k)))
           : rawPayload;
@@ -206,26 +208,41 @@ async function buildMatchedItems(
     const record = allSdJwt.find((rec) => matchesType(rec, pattern));
     if (!record) throw new Error(i18n.t('present.no_credential_for', { id: descriptorId }));
 
-    const compact = record.firstCredential.compact;
-    const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
+    const compact = getSdJwtCompact(record);
+    // isConformant: true only when Credo can decode firstCredential without throwing.
+    // Non-DID cnf.kid issuers (e.g. INJI) throw "Invalid holder kid" — treat as non-conformant
+    // so they are routed through the manual SD-JWT posting path.
+    let isConformant = false;
+    try {
+      const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
+      isConformant = pc.vct !== undefined;
+    } catch { /* non-DID cnf.kid — force manual path */ }
+
+    const pc = getSdJwtPrettyClaims(record);
     const tags = record.getTags() as Record<string, unknown>;
     const holderKeyId = (tags.holderKeyId as string | undefined)
       ?? ((record as unknown as { credentialInstances?: Array<{ kmsKeyId?: string }> })
         .credentialInstances?.[0]?.kmsKeyId);
 
     let holderDid: string | undefined;
+    let holderAlg = 'EdDSA';
     const jwtPayload = decodeJwtPayload(compact.split('~')[0]);
-    if (jwtPayload) holderDid = jwtPayload.sub as string | undefined;
+    if (jwtPayload) {
+      holderDid = jwtPayload.sub as string | undefined;
+      const cnf = jwtPayload.cnf as Record<string, unknown> | undefined;
+      holderAlg = jwkAlgorithm(cnf?.jwk as Record<string, unknown> | undefined);
+    }
 
     matched.push({
       descriptorId,
       pdFormat: extractDescriptorFormat(descriptor),
       record,
       compact,
-      isConformant: pc.vct !== undefined,
+      isConformant,
       hasDisclosures: compact.includes('~'),
       holderKeyId,
       holderDid,
+      holderAlg,
     });
     log(
       `[oid4vp] matched ${descriptorId} → record ${record.id}`,
@@ -266,7 +283,7 @@ async function postDcqlPresentation(
 
     const record = vctValues.length > 0
       ? allSdJwt.find((rec) => {
-          const vct = (rec.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
+          const vct = getSdJwtPrettyClaims(rec).vct as string | undefined;
           return vct && vctValues.some((v) => vct === v || vct.endsWith(v) || v.endsWith(vct));
         })
       : allSdJwt[0];
@@ -276,7 +293,7 @@ async function postDcqlPresentation(
       throw new Error(i18n.t('present.no_credential_for', { id: credId }));
     }
 
-    const credVct = (record.firstCredential.prettyClaims as Record<string, unknown>).vct as string | undefined;
+    const credVct = getSdJwtPrettyClaims(record).vct as string | undefined;
     log('[oid4vp] DCQL', credId, '— vct_values:', vctValues, '| credential vct:', credVct);
 
     // Log the issuer JWT header so we can confirm typ (vc+sd-jwt vs dc+sd-jwt) and alg.
@@ -286,7 +303,7 @@ async function postDcqlPresentation(
       log('[oid4vp] DCQL', credId, '— issuer JWT hdr typ:', issuerHdr.typ, '| alg:', issuerHdr.alg, '| kid prefix:', String(issuerHdr.kid).slice(0, 20));
     } catch { /* ignore */ }
 
-    const compact = record.firstCredential.compact;
+    const compact = getSdJwtCompact(record);
     const tags = record.getTags() as Record<string, unknown>;
     const tagHolderKeyId = tags.holderKeyId as string | undefined;
     let holderDid: string | undefined;
@@ -465,7 +482,7 @@ async function postSdJwtPresentation(
 
     if (item.holderKeyId && item.holderDid) {
       try {
-        const presentation = await buildKbJwt(kms, item.holderKeyId, item.holderDid, sdJwtBase, aud, nonce);
+        const presentation = await buildKbJwt(kms, item.holderKeyId, item.holderDid, sdJwtBase, aud, nonce, item.holderAlg);
         log('[oid4vp] KB-JWT built for:', item.descriptorId);
         return presentation;
       } catch (e) {
@@ -681,12 +698,12 @@ function extractTypePattern(descriptor: Record<string, unknown>): string | undef
 }
 
 function matchesType(
-  record: { firstCredential: { prettyClaims: unknown }; getTags: () => unknown },
+  record: SdJwtVcRecord,
   pattern: string | undefined,
 ): boolean {
   if (!pattern) return false;
   const test = (v: string) => { try { return new RegExp(pattern).test(v); } catch { return v === pattern; } };
-  const pc = record.firstCredential.prettyClaims as Record<string, unknown>;
+  const pc = getSdJwtPrettyClaims(record);
   if ((pc.vct as string | undefined) && test(pc.vct as string)) return true;
   const vcTypes = (pc.vc as Record<string, unknown> | undefined)?.type as string[] | undefined;
   if (Array.isArray(vcTypes) && vcTypes.some(test)) return true;
