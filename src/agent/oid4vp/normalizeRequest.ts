@@ -9,7 +9,7 @@
  * For HTTPS issuers the original patching path applies:
  *  1. client_id patch  — when client_id_scheme=redirect_uri, client_id must equal response_uri.
  *  2. PD URI fetch     — Credo doesn't support presentation_definition_uri; we inline it.
- *  3. Format alg       — PEX v2 requires { alg: [...] } in format constraints.
+ *  3. Format alg       — PEX v2 requires { alg: [...] } in JWT format constraints only.
  */
 
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
@@ -137,7 +137,10 @@ export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<
         if (!fmt) continue;
 
         const ALG = ['ES256', 'EdDSA'];
-        for (const fmtKey of ['jwt_vc_json', 'jwt_vp_json', 'jwt_vc', 'jwt_vp', 'jwt', 'vc+sd-jwt', 'dc+sd-jwt']) {
+        // JWT formats require { alg: [...] } — inject when missing.
+        // SD-JWT formats (vc+sd-jwt, dc+sd-jwt) use sd-jwt_alg_values / kb-jwt_alg_values
+        // and reject 'alg' as an additional property; leave them as-is.
+        for (const fmtKey of ['jwt_vc_json', 'jwt_vp_json', 'jwt_vc', 'jwt_vp', 'jwt']) {
           const fmtObj = fmt[fmtKey] as Record<string, unknown> | undefined;
           if (fmtObj !== undefined && !Array.isArray(fmtObj['alg'])) {
             fmtObj['alg'] = ALG;
