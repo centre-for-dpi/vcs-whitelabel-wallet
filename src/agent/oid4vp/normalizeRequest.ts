@@ -117,7 +117,9 @@ export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<
     }
   }
 
-  // Patches 2 & 3: fetch PD URI and inject alg in format constraints
+  // Patches 2 & 3: fetch PD URI and inject alg into format constraints.
+  // Credo's PEX validator requires format entries to have { alg: [...] } — an empty
+  // format object {} is rejected. This applies to both JWT and SD-JWT format identifiers.
   const pdUri = params.get('presentation_definition_uri');
   if (pdUri) {
     console.log('[oid4vp] fetching presentation_definition_uri:', pdUri);
@@ -135,7 +137,7 @@ export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<
         if (!fmt) continue;
 
         const ALG = ['ES256', 'EdDSA'];
-        for (const fmtKey of ['jwt_vc_json', 'jwt_vp_json', 'jwt_vc', 'jwt_vp', 'jwt']) {
+        for (const fmtKey of ['jwt_vc_json', 'jwt_vp_json', 'jwt_vc', 'jwt_vp', 'jwt', 'vc+sd-jwt', 'dc+sd-jwt']) {
           const fmtObj = fmt[fmtKey] as Record<string, unknown> | undefined;
           if (fmtObj !== undefined && !Array.isArray(fmtObj['alg'])) {
             fmtObj['alg'] = ALG;

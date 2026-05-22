@@ -296,14 +296,14 @@ async function postDcqlPresentation(
     const credVct = getSdJwtPrettyClaims(record).vct as string | undefined;
     log('[oid4vp] DCQL', credId, '— vct_values:', vctValues, '| credential vct:', credVct);
 
+    const compact = getSdJwtCompact(record);
+
     // Log the issuer JWT header so we can confirm typ (vc+sd-jwt vs dc+sd-jwt) and alg.
     try {
       const issuerHdrB64 = compact.split('~')[0].split('.')[0] ?? '';
       const issuerHdr = JSON.parse(atob(issuerHdrB64.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
       log('[oid4vp] DCQL', credId, '— issuer JWT hdr typ:', issuerHdr.typ, '| alg:', issuerHdr.alg, '| kid prefix:', String(issuerHdr.kid).slice(0, 20));
     } catch { /* ignore */ }
-
-    const compact = getSdJwtCompact(record);
     const tags = record.getTags() as Record<string, unknown>;
     const tagHolderKeyId = tags.holderKeyId as string | undefined;
     let holderDid: string | undefined;
