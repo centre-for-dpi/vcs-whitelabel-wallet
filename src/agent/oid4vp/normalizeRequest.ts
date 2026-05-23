@@ -10,6 +10,8 @@
  *  1. client_id patch  — when client_id_scheme=redirect_uri, client_id must equal response_uri.
  *  2. PD URI fetch     — Credo doesn't support presentation_definition_uri; we inline it.
  *  3. Format alg       — PEX v2 requires { alg: [...] } in JWT format constraints only.
+ *  4. Path normalization — JSONPath dot-notation rejects non-ASCII identifiers (e.g. $.año);
+ *                          rewrite them to bracket notation ($["año"]) so PEX validates.
  */
 
 import type { OpenId4VpResolvedAuthorizationRequest } from '@credo-ts/openid4vc';
@@ -117,9 +119,7 @@ export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<
     }
   }
 
-  // Patches 2 & 3: fetch PD URI and inject alg into format constraints.
-  // Credo's PEX validator requires format entries to have { alg: [...] } — an empty
-  // format object {} is rejected. This applies to both JWT and SD-JWT format identifiers.
+  // Patches 2, 3 & 4: fetch PD URI, inject format alg values, and normalize field paths.
   const pdUri = params.get('presentation_definition_uri');
   if (pdUri) {
     console.log('[oid4vp] fetching presentation_definition_uri:', pdUri);
@@ -133,18 +133,43 @@ export async function normalizeAuthorizationRequestUrl(rawUrl: string): Promise<
     const inputDescriptors = pd.input_descriptors as Array<Record<string, unknown>> | undefined;
     if (Array.isArray(inputDescriptors)) {
       for (const descriptor of inputDescriptors) {
+        // Patch 4: normalize non-ASCII dot-notation segments to bracket notation.
+        // PEX's JSONPath parser rejects $.año but accepts $["año"].
+        const constraints = descriptor.constraints as Record<string, unknown> | undefined;
+        const fields = constraints?.fields as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(fields)) {
+          for (const field of fields) {
+            const paths = field.path as string[] | undefined;
+            if (Array.isArray(paths)) {
+              field.path = paths.map((p) =>
+                p.replace(/\.([A-Za-z_-￿][A-Za-z0-9_-￿]*)/g, (match, key) =>
+                  /[-￿]/.test(key) ? `["${key}"]` : match,
+                ),
+              );
+            }
+          }
+        }
+
         const fmt = descriptor.format as Record<string, unknown> | undefined;
         if (!fmt) continue;
 
         const ALG = ['ES256', 'EdDSA'];
         // JWT formats require { alg: [...] } — inject when missing.
-        // SD-JWT formats (vc+sd-jwt, dc+sd-jwt) use sd-jwt_alg_values / kb-jwt_alg_values
-        // and reject 'alg' as an additional property; leave them as-is.
         for (const fmtKey of ['jwt_vc_json', 'jwt_vp_json', 'jwt_vc', 'jwt_vp', 'jwt']) {
           const fmtObj = fmt[fmtKey] as Record<string, unknown> | undefined;
           if (fmtObj !== undefined && !Array.isArray(fmtObj['alg'])) {
             fmtObj['alg'] = ALG;
             console.log(`[oid4vp] injected alg for ${fmtKey} in descriptor:`, descriptor.id);
+          }
+        }
+        // SD-JWT formats use sd-jwt_alg_values / kb-jwt_alg_values instead of alg.
+        // Credo's PEX validator rejects empty {} format objects — inject when missing.
+        for (const fmtKey of ['vc+sd-jwt', 'dc+sd-jwt']) {
+          const fmtObj = fmt[fmtKey] as Record<string, unknown> | undefined;
+          if (fmtObj !== undefined && !Array.isArray(fmtObj['sd-jwt_alg_values'])) {
+            fmtObj['sd-jwt_alg_values'] = ALG;
+            fmtObj['kb-jwt_alg_values'] = ALG;
+            console.log(`[oid4vp] injected sd-jwt_alg_values for ${fmtKey} in descriptor:`, descriptor.id);
           }
         }
       }
