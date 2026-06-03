@@ -155,6 +155,10 @@ const en = {
     valid_badge: 'Valid',
     issued_label: 'Issued',
     id_label: 'Credential ID',
+    count_one: '1 Credential',
+    count_other: '{{count}} Credentials',
+    tap_hint: 'Tap on a card to open',
+    add_card: 'Add credential',
   },
   backup: {
     section_title: 'Backup & Recovery',

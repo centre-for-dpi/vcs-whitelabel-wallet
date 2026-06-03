@@ -157,6 +157,10 @@ const es: Translation = {
     valid_badge: 'Válida',
     issued_label: 'Emitida',
     id_label: 'ID Credencial',
+    count_one: '1 Credencial',
+    count_other: '{{count}} Credenciales',
+    tap_hint: 'Toca una tarjeta para abrirla',
+    add_card: 'Agregar credencial',
   },
   backup: {
     section_title: 'Respaldo y recuperación',

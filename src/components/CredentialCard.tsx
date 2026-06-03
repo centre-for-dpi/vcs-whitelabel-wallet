@@ -3,9 +3,18 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { CredentialEntry } from '../utils/credential';
 import { getExpiryStatus, daysUntilExpiry, issuerCardColor } from '../utils/credential';
+import { NotchedSurface } from './NotchedSurface';
+
+export const CARD_HEIGHT = 90;  // 🎛️ altura del cuerpo de la tarjeta (no afecta el pocket)
+export const TAB_RX = 48;       // tab horizontal radius (wide)
+export const TAB_RY = 36;       // tab vertical radius (shallow)
+export const TAB_SHOULDER = 12; // 🎛️ radio de los hombros del knot (esquinas internas)
+const CORNER_RADIUS = 13;
 
 type Props = {
   entry: CredentialEntry;
+  /** Pixel width measured by the parent deck — required for the notch geometry. */
+  width: number;
   onPress: () => void;
 };
 
@@ -15,15 +24,9 @@ function issuerInitials(issuer: string): string {
   return words.slice(0, 2).map(w => w[0].toUpperCase()).join('');
 }
 
-export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
-  const { t, i18n } = useTranslation();
+export const CredentialCard: React.FC<Props> = ({ entry, width, onPress }) => {
+  const { t } = useTranslation();
   const status = getExpiryStatus(entry.expiryDate);
-
-  const date = new Date(entry.issuanceDate).toLocaleDateString(i18n.language, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
 
   const badgeLabel =
     status === 'expired'
@@ -43,119 +46,119 @@ export const CredentialCard: React.FC<Props> = ({ entry, onPress }) => {
     '#86efac';
 
   return (
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: issuerCardColor(entry.issuer) }]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <View style={styles.topRow}>
-        <View style={styles.iconBox}>
-          <Text style={styles.iconText}>{issuerInitials(entry.issuer)}</Text>
-        </View>
-        <View style={styles.issuerBlock}>
-          <Text style={styles.issuerName} numberOfLines={1}>
-            {entry.issuer.toUpperCase()}
-          </Text>
-        </View>
-        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
-          <View style={[styles.badgeDot, { backgroundColor: badgeAccent }]} />
-          <Text style={[styles.badgeText, { color: badgeAccent }]}>{badgeLabel}</Text>
-        </View>
-      </View>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <NotchedSurface
+        width={width}
+        height={CARD_HEIGHT + TAB_RY}
+        color={issuerCardColor(entry.issuer)}
+        cornerRadius={CORNER_RADIUS}
+        tabRX={TAB_RX}
+        tabRY={TAB_RY}
+        tabShoulder={TAB_SHOULDER}
+      >
+        <View style={styles.content}>
+          <View style={styles.leftSection}>
+            <View style={styles.iconBox}>
+              <Text style={styles.iconText}>{issuerInitials(entry.issuer)}</Text>
+            </View>
+          </View>
 
-      <Text style={styles.credentialName} numberOfLines={2}>
-        {entry.type}
-      </Text>
+          <View style={styles.divider} />
 
-      <View style={styles.bottomRow}>
-        <Text style={styles.bottomLabel}>{t('credentials.issued_label').toUpperCase()}</Text>
-        <Text style={styles.bottomValue}>{date}</Text>
-      </View>
+          <View style={styles.rightSection}>
+            <Text style={styles.credentialName} numberOfLines={2}>
+              {entry.type}
+            </Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.issuerName} numberOfLines={1}>
+                {entry.issuer}
+              </Text>
+              <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+                <View style={[styles.badgeDot, { backgroundColor: badgeAccent }]} />
+                <Text style={[styles.badgeText, { color: badgeAccent }]}>{badgeLabel}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </NotchedSurface>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    marginBottom: 14,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 7,
-  },
-  topRow: {
+  // The tab lives in its own band below the body, so content fills the body freely.
+  content: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
-    gap: 10,
+    paddingHorizontal: 8,
+  },
+  leftSection: {
+    width: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconBox: {
     width: 38,
     height: 38,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
     color: '#fff',
     letterSpacing: 0.5,
   },
-  issuerBlock: {
-    flex: 1,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   issuerName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.75)',
-    letterSpacing: 0.8,
+    flex: 1,                            // ocupa el espacio y empuja el badge a la derecha
+    fontSize: 12,                       // 🎛️ tamaño del nombre del emisor (subtítulo)
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 0.2,
+  },
+  divider: {
+    width: 1,
+    height: 44,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginHorizontal: 14,
+  },
+  rightSection: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 5,
+  },
+  credentialName: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.2,
+    lineHeight: 22,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
   },
   badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  credentialName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 22,
-    letterSpacing: 0.2,
-    lineHeight: 28,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  bottomLabel: {
     fontSize: 9,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.45)',
-    letterSpacing: 0.8,
-  },
-  bottomValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.85)',
-    letterSpacing: 0.8,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

@@ -157,6 +157,10 @@ const fr: Translation = {
     valid_badge: 'Valide',
     issued_label: 'Émis',
     id_label: 'ID Justificatif',
+    count_one: '1 Justificatif',
+    count_other: '{{count}} Justificatifs',
+    tap_hint: 'Appuyez sur une carte pour ouvrir',
+    add_card: 'Ajouter un justificatif',
   },
   backup: {
     section_title: 'Sauvegarde et récupération',
