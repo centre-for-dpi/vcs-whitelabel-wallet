@@ -12,10 +12,12 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { SdJwtVcRepository } from '@credo-ts/core';
 import { branding } from '../../../branding.config';
 import { useAgentState } from '../../../src/agent/context';
 import { useUser } from '../../../src/auth/UserContext';
 import { CredentialCard, CARD_HEIGHT, TAB_RX, TAB_RY, TAB_SHOULDER } from '../../../src/components/CredentialCard';
+import { CredentialDetailSheet } from '../../../src/components/CredentialDetailSheet';
 import {
   NotchedSurface,
   PocketDivider,
@@ -79,6 +81,7 @@ export default function CredentialList() {
   const [refreshing, setRefreshing] = useState(false);
   const [walletW, setWalletW] = useState(INITIAL_WALLET_WIDTH);
   const [walletH, setWalletH] = useState(0);
+  const [selected, setSelected] = useState<CredentialEntry | null>(null);
 
   // Horizontal layers, outer → inner:
   //   gray bg (= walletW)  →  FRAME_BG_GAP  →  dashed frame  →  CARD_FRAME_GAP  →  card
@@ -124,6 +127,34 @@ export default function CredentialList() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  const handlePresent = (entry: CredentialEntry) => {
+    setSelected(null);
+    router.push({ pathname: '/present', params: { id: entry.id, format: entry.format } });
+  };
+
+  const handleDelete = async (entry: CredentialEntry) => {
+    if (agentState.status !== 'ready') return;
+    const { agent } = agentState;
+    try {
+      if (entry.format === 'sdjwt') {
+        try {
+          await agent.sdJwtVc.deleteById(entry.id);
+        } catch {
+          const repo = agent.dependencyManager.resolve(SdJwtVcRepository);
+          await repo.deleteById(agent.context, entry.id);
+        }
+      } else {
+        try {
+          await agent.w3cV2Credentials.deleteById(entry.id);
+        } catch {
+          await agent.w3cCredentials.deleteById(entry.id);
+        }
+      }
+    } catch { /* ignore — refresh regardless */ }
+    setSelected(null);
+    load();
+  };
 
   if (agentState.status !== 'ready' || loading) {
     return (
@@ -214,12 +245,7 @@ export default function CredentialList() {
                       <CredentialCard
                         entry={entry}
                         width={cardWidth}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(tabs)/credentials/[id]',
-                            params: { id: entry.id, format: entry.format },
-                          })
-                        }
+                        onPress={() => setSelected(entry)}
                       />
                     </View>
                     {/* Dashed line hugging the tab, reaching the side frame */}
@@ -260,6 +286,13 @@ export default function CredentialList() {
           </View>
         </>
       )}
+
+      <CredentialDetailSheet
+        entry={selected}
+        onClose={() => setSelected(null)}
+        onPresent={handlePresent}
+        onDelete={handleDelete}
+      />
     </ScrollView>
   );
 }
