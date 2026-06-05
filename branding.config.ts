@@ -11,7 +11,7 @@
 import type { TrustEntry } from './src/agent/trust';
 
 export const branding = {
-  appName: 'CDPI Wallet',
+  appName: 'Wakanda National Wallet',
   primaryColor: '#5454ee',           // CDPI purple — buttons, active tabs, highlights
   secondaryColor: '#ffffff',         // CDPI dark navy — accents
   backgroundColor: '#f9fafba5',
@@ -31,7 +31,6 @@ export const branding = {
  */
 export const trustRegistry: TrustEntry[] = [
   { pattern: 'cdpi\\.dev', name: 'CDPI' },
-  { pattern: 'ysalabs\\.work', name: 'YsaLabs' },
   { pattern: 'bootcamp\\.cdpi\\.dev', name: 'CDPI Bootcamp' },
 ];
 

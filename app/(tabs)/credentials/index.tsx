@@ -38,7 +38,7 @@ const WALLET_PAD = 14;            // padding vertical interno (arriba/abajo) del
 const ADD_BG     = '#4B5563';
 
 // 🎛️ Colores
-const POCKET_BG           = '#e9ebec'; // color de fondo de los pockets
+const POCKET_BG           = '#955f50'; // color de fondo de los pockets
 const POCKET_BORDER_COLOR = '#D7DBE0'; // color del borde del fondo gris
 
 // 🎛️ Separaciones horizontales (de afuera hacia adentro)
