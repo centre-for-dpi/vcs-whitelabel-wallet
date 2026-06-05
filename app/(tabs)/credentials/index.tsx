@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SdJwtVcRepository } from '@credo-ts/core';
-import { branding } from '../../../branding.config';
+import { branding, walletDesign } from '../../../branding.config';
 import { useAgentState } from '../../../src/agent/context';
 import { useUser } from '../../../src/auth/UserContext';
 import { CredentialCard, CARD_HEIGHT, TAB_RX, TAB_RY, TAB_SHOULDER } from '../../../src/components/CredentialCard';
@@ -33,32 +33,8 @@ import {
 } from '../../../src/utils/credential';
 import { OidcUser, getUserDisplayName } from '../../../src/utils/storage';
 
-const SCREEN_BG = '#F9FAFB';
-const WALLET_PAD = 14;            // padding vertical interno (arriba/abajo) del wallet
-const ADD_BG     = '#4B5563';
-
-// 🎛️ Colores
-const POCKET_BG           = '#955f50'; // color de fondo de los pockets
-const POCKET_BORDER_COLOR = '#D7DBE0'; // color del borde del fondo gris
-
-// 🎛️ Separaciones horizontales (de afuera hacia adentro)
-const POCKET_SCREEN_GAP = 10; // fondo gris ↔ borde de la pantalla
-const FRAME_BG_GAP      = 12; // líneas punteadas ↔ borde del fondo gris
-const CARD_FRAME_GAP    = 14;  // tarjetas ↔ líneas punteadas
-
-// 🎛️ Otros
-const POCKET_BORDER_WIDTH = 6; // grosor del borde del fondo gris
-const POCKET_BG_RADIUS    = 18;  // radio de las esquinas del fondo gris (arriba y abajo)
-const KNOT_TO_NEXT_CARD   = 60;  // 🎛️ separación entre el knot y la siguiente tarjeta (alto del pocket)
-
-// The add card uses a bigger, rounder knot so the "+" can nest inside it.
-const ADD_TAB_RX = 48;
-const ADD_TAB_RY = 36;
-
-// Best-effort initial wallet width so the first frame already draws correctly
-// (corrected precisely by onLayout). The wallet = the gray-bg area; the deck
-// pads it away from the screen by POCKET_SCREEN_GAP on each side.
-const INITIAL_WALLET_WIDTH = Dimensions.get('window').width - POCKET_SCREEN_GAP * 2;
+// Best-effort initial wallet width (corrected precisely by onLayout).
+const INITIAL_WALLET_WIDTH = Dimensions.get('window').width - walletDesign.pocketScreenGap * 2;
 
 function userInitials(user: OidcUser): string {
   if (user.given_name && user.family_name)
@@ -84,14 +60,14 @@ export default function CredentialList() {
   const [selected, setSelected] = useState<CredentialEntry | null>(null);
 
   // Horizontal layers, outer → inner:
-  //   gray bg (= walletW)  →  FRAME_BG_GAP  →  dashed frame  →  CARD_FRAME_GAP  →  card
-  const frameW    = walletW - FRAME_BG_GAP * 2;
-  const cardWidth = frameW - CARD_FRAME_GAP * 2;
+  //   gray bg (= walletW)  →  frameBgGap  →  dashed frame  →  cardFrameGap  →  card
+  const frameW    = walletW - walletDesign.frameBgGap * 2;
+  const cardWidth = frameW - walletDesign.cardFrameGap * 2;
 
   // The frame starts at the first divider (below the first card), so the first
   // row has no lines. The pocket corners now curve DOWN, so the rails begin at
   // the straight run (card bottom + gap) plus the corner drop (pocketRadius).
-  const frameTopInset = WALLET_PAD + CARD_HEIGHT + DIVIDER_GAP + POCKET_RADIUS;
+  const frameTopInset = walletDesign.walletPad + CARD_HEIGHT + DIVIDER_GAP + POCKET_RADIUS;
 
   const onWalletLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -221,21 +197,21 @@ export default function CredentialList() {
                 style={[
                   styles.pocketBg,
                   {
-                    top: WALLET_PAD + CARD_HEIGHT,
-                    backgroundColor: POCKET_BG,
-                    borderColor: POCKET_BORDER_COLOR,
-                    borderLeftWidth: POCKET_BORDER_WIDTH,
-                    borderRightWidth: POCKET_BORDER_WIDTH,
-                    borderBottomWidth: POCKET_BORDER_WIDTH,
+                    top: walletDesign.walletPad + CARD_HEIGHT,
+                    backgroundColor: walletDesign.pocketBgColor,
+                    borderColor: walletDesign.pocketBorderColor,
+                    borderLeftWidth: walletDesign.pocketBorderWidth,
+                    borderRightWidth: walletDesign.pocketBorderWidth,
+                    borderBottomWidth: walletDesign.pocketBorderWidth,
                   },
                 ]}
               />
-              {/* Dashed frame, inset from the gray bg by FRAME_BG_GAP */}
+              {/* Dashed frame, inset from the gray bg by frameBgGap */}
               <WalletFrame
                 width={frameW}
                 height={walletH}
                 topInset={frameTopInset}
-                style={{ position: 'absolute', top: 0, left: FRAME_BG_GAP }}
+                style={{ position: 'absolute', top: 0, left: walletDesign.frameBgGap }}
               />
 
               <View style={styles.walletInner}>
@@ -263,10 +239,10 @@ export default function CredentialList() {
                   >
                     <NotchedSurface
                       width={cardWidth}
-                      height={CARD_HEIGHT + ADD_TAB_RY}
-                      color={ADD_BG}
-                      tabRX={ADD_TAB_RX}
-                      tabRY={ADD_TAB_RY}
+                      height={CARD_HEIGHT + walletDesign.tabRY}
+                      color={walletDesign.addCardBgColor}
+                      tabRX={walletDesign.tabRX}
+                      tabRY={walletDesign.tabRY}
                       tabShoulder={TAB_SHOULDER}
                     >
                       <View style={styles.addCard}>
@@ -298,9 +274,9 @@ export default function CredentialList() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: SCREEN_BG },
+  container: { flex: 1, backgroundColor: walletDesign.screenBgColor },
   content:   { paddingBottom: 48 },
-  center:    { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: SCREEN_BG },
+  center:    { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: walletDesign.screenBgColor },
 
   // ── Profile ──────────────────────────────────────────────────────────────────
   profileSection: {
@@ -327,23 +303,23 @@ const styles = StyleSheet.create({
   },
 
   // ── Deck / wallet holder ──────────────────────────────────────────────────────
-  deck:   { paddingHorizontal: POCKET_SCREEN_GAP },  // gray bg ↔ screen edge
-  wallet: { position: 'relative' },                  // = the gray-bg area; layers drawn as children
-  walletInner: { paddingVertical: WALLET_PAD },      // top/bottom padding inside
-  cardWrap: { marginHorizontal: FRAME_BG_GAP + CARD_FRAME_GAP }, // card ↔ screen (past frame)
+  deck:   { paddingHorizontal: walletDesign.pocketScreenGap },  // gray bg ↔ screen edge
+  wallet: { position: 'relative' },                              // = the gray-bg area; layers drawn as children
+  walletInner: { paddingVertical: walletDesign.walletPad },      // top/bottom padding inside
+  cardWrap: { marginHorizontal: walletDesign.frameBgGap + walletDesign.cardFrameGap }, // card ↔ screen (past frame)
   // Pocket fill behind the cards; fills the wallet width, `top` set inline.
   pocketBg: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: POCKET_BG_RADIUS,
+    borderRadius: walletDesign.pocketBgRadius,
   },
   // Divider positions itself vertically; here we inset it to the dashed frame
   // and set the separation before the next card.
   dividerWrap: {
-    marginHorizontal: FRAME_BG_GAP,
-    marginBottom: KNOT_TO_NEXT_CARD,
+    marginHorizontal: walletDesign.frameBgGap,
+    marginBottom: walletDesign.knotToNextCard,
   },
 
   // ── Add card ─────────────────────────────────────────────────────────────────

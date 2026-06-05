@@ -1,13 +1,14 @@
 import React from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { walletDesign } from '../../branding.config';
 
-const DASH = '6 14';          // 🎛️ tamaño de los guiones: 'largo_guion largo_espacio'
-const DASH_COLOR = '#C2CAD4';// 🎛️ color de las líneas punteadas
-const DASH_WIDTH = 2.0;      // 🎛️ grosor de las líneas punteadas
-export const FRAME_RADIUS = 18;    // 🎛️ border radius de las esquinas del marco punteado
-export const POCKET_RADIUS = 20;   // 🎛️ border radius de las esquinas entre cada pocket
-export const DIVIDER_GAP = 10;      // 🎛️ separación entre la línea punteada y el borde de la tarjeta
+const DASH       = walletDesign.dashPattern;
+const DASH_COLOR = walletDesign.dashColor;
+const DASH_WIDTH = walletDesign.dashWidth;
+export const FRAME_RADIUS  = walletDesign.frameRadius;
+export const POCKET_RADIUS = walletDesign.pocketRadius;
+export const DIVIDER_GAP   = walletDesign.dividerGap;
 
 /**
  * Builds an SVG path for a card whose TOP corners are rounded but whose BOTTOM

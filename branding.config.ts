@@ -34,6 +34,46 @@ export const trustRegistry: TrustEntry[] = [
   { pattern: 'bootcamp\\.cdpi\\.dev', name: 'CDPI Bootcamp' },
 ];
 
+/**
+ * Wallet visual design — controls the pocket card-holder look and feel.
+ * Every value here is a deployment customization point.
+ */
+export const walletDesign = {
+  // ── Screen background ───────────────────────────────────────────────────
+  screenBgColor: '#F9FAFB',
+
+  // ── Card geometry ────────────────────────────────────────────────────────
+  cardHeight: 90,        // height of the card body (without the knot)
+  tabRX: 48,             // horizontal radius of the knot
+  tabRY: 36,             // vertical radius of the knot
+  tabShoulder: 12,       // radius of the knot shoulders (inner corners)
+  cardCornerRadius: 13,  // top corners of the card
+
+  // ── Dotted Lines ─────────────────────────────────────────────────────
+  dashPattern: '6 14',   // 'long_dash long_space'
+  dashColor: '#C2CAD4',  // color of the dotted lines
+  dashWidth: 2.0,        // thickness of the dotted lines
+  frameRadius: 18,       // radius of the corners of the dotted frame
+  pocketRadius: 20,      // radius of the corners between each pocket
+  dividerGap: 10,        // gap between the line and the edge of the card
+
+  // ── pockets background ─────────────────────────────────────────────────────
+  pocketBgColor: '#955f50',      // color of the pockets background
+  pocketBorderColor: '#D7DBE0',  // color of the pockets border
+  pocketBorderWidth: 6,          // thickness of the pockets border
+  pocketBgRadius: 18,            // radius of the corners of the pockets background
+
+  // ── Spacing (from outside to inside) ──────────────────────────────────
+  pocketScreenGap: 10,   // gap between the pockets and the screen edge
+  frameBgGap: 12,        // gap between the dotted lines and the pockets background
+  cardFrameGap: 14,      // gap between the cards and the dotted lines
+  walletPad: 14,         // vertical padding inside the wallet
+  knotToNextCard: 60,    // gap between the knot and the next card
+
+  // ── Add card button ─────────────────────────────────────────────────
+  addCardBgColor: '#4B5563',
+} as const;
+
 // OIDC configuration — edit these values to enable SSO login.
 // Keycloak issuerUrl format: https://{host}/realms/{realm}
 // Register redirectUri exactly as-is in Keycloak → Client → Valid redirect URIs

@@ -4,12 +4,13 @@ import { useTranslation } from 'react-i18next';
 import type { CredentialEntry } from '../utils/credential';
 import { getExpiryStatus, daysUntilExpiry, issuerCardColor } from '../utils/credential';
 import { NotchedSurface } from './NotchedSurface';
+import { walletDesign } from '../../branding.config';
 
-export const CARD_HEIGHT = 90;  // 🎛️ altura del cuerpo de la tarjeta (no afecta el pocket)
-export const TAB_RX = 48;       // tab horizontal radius (wide)
-export const TAB_RY = 36;       // tab vertical radius (shallow)
-export const TAB_SHOULDER = 12; // 🎛️ radio de los hombros del knot (esquinas internas)
-const CORNER_RADIUS = 13;
+export const CARD_HEIGHT  = walletDesign.cardHeight;
+export const TAB_RX       = walletDesign.tabRX;
+export const TAB_RY       = walletDesign.tabRY;
+export const TAB_SHOULDER = walletDesign.tabShoulder;
+const CORNER_RADIUS       = walletDesign.cardCornerRadius;
 
 type Props = {
   entry: CredentialEntry;
