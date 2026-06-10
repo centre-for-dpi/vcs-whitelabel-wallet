@@ -2,7 +2,7 @@ import { Tabs, router } from 'expo-router';
 import React from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { branding } from '../../branding.config';
+import { branding, discoveryConfig } from '../../branding.config';
 
 const Icon = ({ label, focused, size = 22 }: { label: string; focused: boolean; size?: number }) => (
   <View style={{ overflow: 'visible', alignItems: 'center', justifyContent: 'center' }}>
@@ -53,6 +53,18 @@ export default function TabsLayout() {
               </Text>
             </View>
           ),
+          headerRight: () => <NotificationBell />,
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: t('discover.title'),
+          tabBarLabel: t('tabs.discover'),
+          tabBarIcon: ({ focused }) => <Icon label="🧭" focused={focused} />,
+          // href: null removes the tab from the bar when discovery is disabled,
+          // without deleting the route file.
+          href: discoveryConfig.enabled ? undefined : null,
           headerRight: () => <NotificationBell />,
         }}
       />

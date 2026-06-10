@@ -13,6 +13,7 @@ const KEY_LOCKOUT_UNTIL = 'cdpi_lockout_until';
 const KEY_BIOMETRICS_ENABLED    = 'cdpi_biometrics_enabled';
 const KEY_OIDC_REFRESH_TOKEN    = 'cdpi_oidc_refresh_token';
 const KEY_OIDC_TOKEN_EXPIRY     = 'cdpi_oidc_token_expiry';
+const KEY_OIDC_ID_TOKEN         = 'cdpi_oidc_id_token';
 
 export type OidcUser = {
   sub: string;
@@ -131,16 +132,24 @@ export const clearOidcUser = async (): Promise<void> => {
 export const saveOidcTokens = async (
   refreshToken: string | null | undefined,
   expiresIn: number | null | undefined,
+  idToken?: string | null | undefined,
 ): Promise<void> => {
   if (refreshToken) await SecureStore.setItemAsync(KEY_OIDC_REFRESH_TOKEN, refreshToken);
   if (expiresIn) {
     const expiry = Date.now() + expiresIn * 1000;
     await SecureStore.setItemAsync(KEY_OIDC_TOKEN_EXPIRY, String(expiry));
   }
+  // The id_token is what the issuer's self-service endpoint verifies (signature,
+  // iss, exp) against the IdP JWKS. Persisted so the "Descubrir" → Obtener flow
+  // can present the citizen's verified identity without a fresh login.
+  if (idToken) await SecureStore.setItemAsync(KEY_OIDC_ID_TOKEN, idToken);
 };
 
 export const getOidcRefreshToken = async (): Promise<string | null> =>
   SecureStore.getItemAsync(KEY_OIDC_REFRESH_TOKEN);
+
+export const getOidcIdToken = async (): Promise<string | null> =>
+  SecureStore.getItemAsync(KEY_OIDC_ID_TOKEN);
 
 export const isOidcTokenExpired = async (): Promise<boolean> => {
   const val = await SecureStore.getItemAsync(KEY_OIDC_TOKEN_EXPIRY);
@@ -152,6 +161,7 @@ export const clearOidcTokens = async (): Promise<void> => {
   await Promise.all([
     SecureStore.deleteItemAsync(KEY_OIDC_REFRESH_TOKEN),
     SecureStore.deleteItemAsync(KEY_OIDC_TOKEN_EXPIRY),
+    SecureStore.deleteItemAsync(KEY_OIDC_ID_TOKEN),
   ]);
 };
 

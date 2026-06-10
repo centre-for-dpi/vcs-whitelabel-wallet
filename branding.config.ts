@@ -92,3 +92,22 @@ export const oidcConfig: {
   scopes: ['openid', 'profile', 'email'],
   buttonLabel: 'Login with SSO',
 };
+
+// Credential discovery — powers the "Descubrir" tab.
+//
+// hubUrl points at the federation hub (verifiably-go in the `hub` role), which
+// aggregates every trusted member's /.well-known/openid-credential-issuer into
+// one catalog. The wallet GETs `${hubUrl}/api/v1/discovery/credentials`, then
+// self-issues each credential against ITS OWN `service_endpoint` returned in
+// that catalog — so a citizen browses the whole federation and downloads any
+// credential they're eligible for, no operator in the loop. Self-issue requires
+// the citizen's OIDC id_token (oidcConfig above must be enabled).
+//
+// Set hubUrl to your hub host. Leave enabled:false to hide the tab.
+export const discoveryConfig: {
+  enabled: boolean;
+  hubUrl: string;
+} = {
+  enabled: true,
+  hubUrl: 'https://verifiably.ysalabs.work',
+};

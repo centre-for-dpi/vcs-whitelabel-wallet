@@ -79,7 +79,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         discovery,
       );
 
-      await saveOidcTokens(tokenResp.refreshToken ?? refreshToken, tokenResp.expiresIn);
+      await saveOidcTokens(tokenResp.refreshToken ?? refreshToken, tokenResp.expiresIn, tokenResp.idToken);
 
       if (discovery.userInfoEndpoint) {
         const resp = await fetch(discovery.userInfoEndpoint, {
