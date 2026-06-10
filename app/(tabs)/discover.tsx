@@ -36,6 +36,7 @@ export default function Discover() {
   const { t } = useTranslation();
   const { user, refreshUser } = useUser();
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [errorKey, setErrorKey] = useState<'error' | 'error_unavailable'>('error');
   const [issuers, setIssuers] = useState<CatalogIssuer[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -50,13 +51,15 @@ export default function Discover() {
       setState('ready');
     } catch (e) {
       console.error('[discover] load failed:', e);
+      setErrorKey(e instanceof TypeError ? 'error_unavailable' : 'error');
       setState('error');
     }
   }, []);
 
   useEffect(() => {
-    if (discoveryConfig.enabled) load();
-  }, [load]);
+    if (discoveryConfig.enabled && user) load();
+    else if (!user) setState('ready');
+  }, [load, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -115,10 +118,20 @@ export default function Discover() {
     return (
       <View style={styles.center}>
         <Text style={styles.bigIcon}>📡</Text>
-        <Text style={styles.errorText}>{t('discover.error')}</Text>
+        <Text style={styles.errorText}>{t(`discover.${errorKey}`)}</Text>
         <TouchableOpacity style={[styles.btn, { backgroundColor: branding.primaryColor }]} onPress={() => load()}>
           <Text style={styles.btnText}>{t('discover.retry')}</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.bigIcon}>🔐</Text>
+        <Text style={styles.loginRequiredTitle}>{t('discover.login_required_title')}</Text>
+        <Text style={styles.loginRequiredBody}>{t('discover.login_required_body')}</Text>
       </View>
     );
   }
@@ -132,12 +145,6 @@ export default function Discover() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={branding.primaryColor} />}
     >
       <Text style={styles.subtitle}>{t('discover.subtitle')}</Text>
-
-      {!user && (
-        <View style={styles.loginBanner}>
-          <Text style={styles.loginBannerText}>🔐  {t('discover.login_required')}</Text>
-        </View>
-      )}
 
       {!hasAny && <Text style={styles.empty}>{t('discover.empty')}</Text>}
 
@@ -200,8 +207,8 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 20 },
   subtitle: { fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 16 },
   empty: { fontSize: 15, color: '#9CA3AF', textAlign: 'center', marginTop: 40 },
-  loginBanner: { backgroundColor: '#FFFBEB', borderRadius: 10, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#FDE68A' },
-  loginBannerText: { fontSize: 13, color: '#92400E', lineHeight: 18 },
+  loginRequiredTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 10, textAlign: 'center' },
+  loginRequiredBody: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, paddingHorizontal: 8 },
   issuerSection: { marginBottom: 24 },
   issuerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 },
   issuerName: { fontSize: 13, fontWeight: '700', color: '#374151', flex: 1, textTransform: 'uppercase', letterSpacing: 0.5 },

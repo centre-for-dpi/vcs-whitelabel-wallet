@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SdJwtVcRepository } from '@credo-ts/core';
-import { branding, walletDesign } from '../../../branding.config';
+import { branding, walletDesign, discoveryConfig } from '../../../branding.config';
 import { useAgentState } from '../../../src/agent/context';
 import { useUser } from '../../../src/auth/UserContext';
 import { CredentialCard, CARD_HEIGHT, TAB_RX, TAB_RY, TAB_SHOULDER } from '../../../src/components/CredentialCard';
@@ -183,6 +183,16 @@ export default function CredentialList() {
           >
             <Text style={styles.scanBtnText}>{t('credentials.scan_btn')}</Text>
           </TouchableOpacity>
+          {discoveryConfig.enabled && (
+            <TouchableOpacity
+              style={[styles.scanBtn, styles.discoverBtn]}
+              onPress={() => router.push('/(tabs)/discover')}
+            >
+              <Text style={[styles.scanBtnText, { color: branding.primaryColor }]}>
+                {t('credentials.discover_btn')}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <>
@@ -350,5 +360,6 @@ const styles = StyleSheet.create({
   emptyTitle:  { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 8 },
   emptyBody:   { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
   scanBtn:     { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  discoverBtn: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: branding.primaryColor, marginTop: 10 },
   scanBtnText: { color: '#fff', fontWeight: '600' },
 });
