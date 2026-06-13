@@ -86,8 +86,8 @@ export const oidcConfig: {
   buttonLabel: string;
 } = {
   enabled: true,
-  issuerUrl: 'https://auth.bootcamp.cdpi.dev/realms/verifiably-demo',
-  clientId: 'cdpi-wallet-oidc-client',
+  issuerUrl: 'https://keycloak.verifiably.ysalabs.work/realms/vcplatform',
+  clientId: 'vcplatform',
   redirectUri: 'cdpiwallet://auth',
   scopes: ['openid', 'profile', 'email'],
   buttonLabel: 'Login with SSO',

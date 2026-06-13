@@ -110,6 +110,8 @@ const en = {
   settings: {
     section_session: 'Session',
     sign_out: 'Sign out',
+    sign_in: 'Sign in',
+    not_signed_in: 'You are not signed in with a national identity account.',
     section_wallet: 'Wallet',
     row_name: 'Name',
     row_agent: 'Agent status',
@@ -238,6 +240,9 @@ const en = {
     retry: 'Retry',
     issue_error: 'Could not get this credential.',
     not_eligible: "Your identity doesn't cover this credential's data yet.",
+    session_expired: 'Your session has expired. Sign out and sign back in to continue.',
+    no_national_id_title: 'Identity verification required',
+    no_national_id_body: 'To access this service, you need your national ID verified. Complete identity verification with your identity provider.',
   },
   modals: {
     receive: 'Receive credential',

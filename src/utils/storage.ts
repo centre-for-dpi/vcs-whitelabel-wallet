@@ -14,6 +14,7 @@ const KEY_BIOMETRICS_ENABLED    = 'cdpi_biometrics_enabled';
 const KEY_OIDC_REFRESH_TOKEN    = 'cdpi_oidc_refresh_token';
 const KEY_OIDC_TOKEN_EXPIRY     = 'cdpi_oidc_token_expiry';
 const KEY_OIDC_ID_TOKEN         = 'cdpi_oidc_id_token';
+const KEY_OIDC_ACCESS_TOKEN     = 'cdpi_oidc_access_token';
 
 export type OidcUser = {
   sub: string;
@@ -133,16 +134,18 @@ export const saveOidcTokens = async (
   refreshToken: string | null | undefined,
   expiresIn: number | null | undefined,
   idToken?: string | null | undefined,
+  accessToken?: string | null | undefined,
 ): Promise<void> => {
   if (refreshToken) await SecureStore.setItemAsync(KEY_OIDC_REFRESH_TOKEN, refreshToken);
   if (expiresIn) {
     const expiry = Date.now() + expiresIn * 1000;
     await SecureStore.setItemAsync(KEY_OIDC_TOKEN_EXPIRY, String(expiry));
   }
-  // The id_token is what the issuer's self-service endpoint verifies (signature,
-  // iss, exp) against the IdP JWKS. Persisted so the "Descubrir" → Obtener flow
-  // can present the citizen's verified identity without a fresh login.
   if (idToken) await SecureStore.setItemAsync(KEY_OIDC_ID_TOKEN, idToken);
+  // The access_token is the preferred token for the self-issue flow: the wallet
+  // reliably refreshes it on every refreshUser() call, whereas Keycloak may not
+  // return a new id_token in refresh responses.
+  if (accessToken) await SecureStore.setItemAsync(KEY_OIDC_ACCESS_TOKEN, accessToken);
 };
 
 export const getOidcRefreshToken = async (): Promise<string | null> =>
@@ -150,6 +153,9 @@ export const getOidcRefreshToken = async (): Promise<string | null> =>
 
 export const getOidcIdToken = async (): Promise<string | null> =>
   SecureStore.getItemAsync(KEY_OIDC_ID_TOKEN);
+
+export const getOidcAccessToken = async (): Promise<string | null> =>
+  SecureStore.getItemAsync(KEY_OIDC_ACCESS_TOKEN);
 
 export const isOidcTokenExpired = async (): Promise<boolean> => {
   const val = await SecureStore.getItemAsync(KEY_OIDC_TOKEN_EXPIRY);
@@ -162,6 +168,7 @@ export const clearOidcTokens = async (): Promise<void> => {
     SecureStore.deleteItemAsync(KEY_OIDC_REFRESH_TOKEN),
     SecureStore.deleteItemAsync(KEY_OIDC_TOKEN_EXPIRY),
     SecureStore.deleteItemAsync(KEY_OIDC_ID_TOKEN),
+    SecureStore.deleteItemAsync(KEY_OIDC_ACCESS_TOKEN),
   ]);
 };
 
