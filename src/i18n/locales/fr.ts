@@ -112,6 +112,8 @@ const fr: Translation = {
   settings: {
     section_session: 'Session',
     sign_out: 'Se déconnecter',
+    sign_in: 'Se connecter',
+    not_signed_in: "Vous n'êtes pas connecté avec un compte d'identité nationale.",
     section_wallet: 'Portefeuille',
     row_name: 'Nom',
     row_agent: "État de l'agent",
@@ -240,6 +242,9 @@ const fr: Translation = {
     retry: 'Réessayer',
     issue_error: "Impossible d'obtenir ce justificatif.",
     not_eligible: "Votre identité ne couvre pas encore les données de ce justificatif.",
+    session_expired: 'Votre session a expiré. Déconnectez-vous et reconnectez-vous pour continuer.',
+    no_national_id_title: "Vérification d'identité requise",
+    no_national_id_body: "Pour accéder à ce service, vous devez avoir votre pièce d'identité nationale vérifiée. Complétez la vérification auprès de votre fournisseur d'identité.",
   },
   modals: {
     receive: 'Recevoir un justificatif',

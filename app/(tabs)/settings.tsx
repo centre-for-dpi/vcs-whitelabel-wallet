@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import * as AuthSession from 'expo-auth-session';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Share, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { branding } from '../../branding.config';
+import { branding, oidcConfig } from '../../branding.config';
 import { useAgentState } from '../../src/agent/context';
 import { useUser } from '../../src/auth/UserContext';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../../src/auth/biometric';
 import { SUPPORTED_LANGS, setLanguagePreference, type Language } from '../../src/i18n';
-import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase, saveRecoveryPhrase, verifyPin, savePin } from '../../src/utils/storage';
+import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase, saveRecoveryPhrase, verifyPin, savePin, OidcUser, saveOidcTokens } from '../../src/utils/storage';
 import { exportBackup, generateRecoveryPhrase } from '../../src/utils/backup';
 
 const Row = ({ label, value }: { label: string; value: string }) => (
@@ -18,7 +19,7 @@ const Row = ({ label, value }: { label: string; value: string }) => (
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
-  const { user, clearUser } = useUser();
+  const { user, setUser, clearUser } = useUser();
   const agentState = useAgentState();
   const [biometricsOn, setBiometricsOn] = useState(false);
   const [biometricsAvailable, setBiometricsAvailableState] = useState(false);
@@ -28,6 +29,23 @@ export default function Settings() {
   const [generatingPhrase, setGeneratingPhrase] = useState(false);
   const [phraseToReveal, setPhraseToReveal] = useState('');
   const [phraseModalVisible, setPhraseModalVisible] = useState(false);
+
+  const [oidcLoading, setOidcLoading] = useState(false);
+  const [oidcError, setOidcError] = useState('');
+
+  const discovery = AuthSession.useAutoDiscovery(
+    oidcConfig.enabled ? oidcConfig.issuerUrl : null,
+  );
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: oidcConfig.clientId,
+      scopes: oidcConfig.scopes ?? ['openid', 'profile', 'email'],
+      redirectUri: oidcConfig.redirectUri,
+      responseType: AuthSession.ResponseType.Code,
+    },
+    oidcConfig.enabled ? discovery : null,
+  );
+  const codeVerifierRef = useRef<string | undefined>(undefined);
 
   const [changePinVisible, setChangePinVisible] = useState(false);
   const [changePinStep, setChangePinStep] = useState<'verify' | 'new' | 'confirm'>('verify');
@@ -69,6 +87,64 @@ export default function Settings() {
 
   const truncateDid = (did: string) =>
     did.length > 36 ? `${did.slice(0, 20)}…${did.slice(-10)}` : did;
+
+  useEffect(() => {
+    if (!response) return;
+    if (response.type === 'success') {
+      setOidcLoading(true);
+      exchangeCode(response.params.code);
+    } else if (response.type === 'error') {
+      const desc = (response as { params?: { error_description?: string } }).params?.error_description ?? '';
+      setOidcError(t('unlock.oidc_error', { desc: desc || t('common.try_again') }));
+    } else if (response.type === 'dismiss') {
+      setOidcError(t('unlock.oidc_cancelled'));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response]);
+
+  const exchangeCode = async (code: string) => {
+    if (!discovery?.tokenEndpoint) {
+      setOidcError(t('unlock.config_error'));
+      setOidcLoading(false);
+      return;
+    }
+    try {
+      const tokenResp = await AuthSession.exchangeCodeAsync(
+        {
+          clientId: oidcConfig.clientId,
+          code,
+          redirectUri: oidcConfig.redirectUri,
+          extraParams: codeVerifierRef.current ? { code_verifier: codeVerifierRef.current } : {},
+        },
+        discovery,
+      );
+      await saveOidcTokens(tokenResp.refreshToken, tokenResp.expiresIn, tokenResp.idToken, tokenResp.accessToken);
+      if (discovery.userInfoEndpoint) {
+        const uiResp = await fetch(discovery.userInfoEndpoint, {
+          headers: { Authorization: `Bearer ${tokenResp.accessToken}` },
+        });
+        if (uiResp.ok) {
+          const info = (await uiResp.json()) as Record<string, string>;
+          const oidcUser: OidcUser = {
+            sub: info.sub, name: info.name,
+            given_name: info.given_name, family_name: info.family_name, email: info.email,
+          };
+          await setUser(oidcUser);
+        }
+      }
+      setOidcError('');
+    } catch (e: unknown) {
+      setOidcError(e instanceof Error ? e.message : t('unlock.auth_error'));
+    } finally {
+      setOidcLoading(false);
+    }
+  };
+
+  const handleOidcLogin = async () => {
+    codeVerifierRef.current = request?.codeVerifier ?? undefined;
+    setOidcError('');
+    await promptAsync();
+  };
 
   const handleBiometricsToggle = async (value: boolean) => {
     if (value) {
@@ -158,7 +234,7 @@ export default function Settings() {
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {user && (
+      {user ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.section_session')}</Text>
           <View style={styles.userCard}>
@@ -174,7 +250,24 @@ export default function Settings() {
             <Text style={styles.signOutText}>{t('settings.sign_out')}</Text>
           </TouchableOpacity>
         </View>
-      )}
+      ) : oidcConfig.enabled ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('settings.section_session')}</Text>
+          <Text style={styles.notSignedInText}>{t('settings.not_signed_in')}</Text>
+          {oidcError ? <Text style={styles.signInError}>{oidcError}</Text> : null}
+          {oidcLoading ? (
+            <ActivityIndicator size="small" color={branding.primaryColor} style={{ marginTop: 14 }} />
+          ) : (
+            <TouchableOpacity
+              style={[styles.exportBtn, { backgroundColor: branding.primaryColor }, !request && styles.exportBtnDisabled]}
+              disabled={!request}
+              onPress={handleOidcLogin}
+            >
+              <Text style={styles.exportBtnText}>{t('settings.sign_in')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('settings.section_security')}</Text>
@@ -399,6 +492,8 @@ const styles = StyleSheet.create({
   phraseBox: { backgroundColor: '#F9FAFB', borderRadius: 10, padding: 14, marginTop: 12, marginBottom: 4 },
   phraseText: { fontSize: 14, color: '#111827', lineHeight: 22, fontFamily: 'monospace' },
   phraseWarning: { fontSize: 11, color: '#D97706', marginTop: 10, lineHeight: 16 },
+  notSignedInText: { fontSize: 13, color: '#6B7280', lineHeight: 20, marginBottom: 4 },
+  signInError: { color: '#DC2626', fontSize: 13, marginBottom: 8 },
   setupPhraseHint: { fontSize: 13, color: '#6B7280', lineHeight: 20, marginBottom: 4 },
   exportBtn: { marginTop: 14, height: 46, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   exportBtnDisabled: { opacity: 0.5 },
