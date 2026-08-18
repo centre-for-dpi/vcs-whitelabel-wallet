@@ -1,4 +1,4 @@
-import { SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
+import { MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { CredentialResult } from './requestCredentials';
 
@@ -90,6 +90,18 @@ export async function storeOid4VciCredential(
   } else if (recordType === 'W3cCredentialRecord' || record instanceof W3cCredentialRecord) {
     await agent.w3cCredentials.store({ record: record as W3cCredentialRecord });
     console.log('[oid4vci] stored W3cCredentialRecord');
+  } else if (recordType === 'MdocRecord' || record instanceof MdocRecord) {
+    // mso_mdoc (ISO/IEC 18013-5, e.g. mDL): Credo's own holder.requestCredentials
+    // already parsed the response and resolved credentialInstances[0].kmsKeyId
+    // from the jwk binding credentialBindingResolver returned — cose_key-only
+    // issuers (like walt.id's mDL catalog entry) are treated as jwk-capable by
+    // Credo itself (OpenId4VciHolderService: supportsJwk includes cose_key), so
+    // no separate binding path was needed here. This record is ready to
+    // persist as-is; unlike the SD-JWT/W3C branches above, mdoc has no
+    // sensible 'issuerName'/'credentialName' tag scheme of its own yet — add
+    // tags here if/when the mDL presentation UI needs to filter by them.
+    const stored = await agent.mdoc.store({ record: record as MdocRecord });
+    console.log('[oid4vci] stored MdocRecord id:', stored.id);
   } else {
     console.warn('[oid4vci] unknown record type, not stored:', recordType);
   }
