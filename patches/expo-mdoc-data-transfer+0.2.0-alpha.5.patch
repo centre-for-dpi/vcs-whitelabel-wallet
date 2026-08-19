@@ -1,0 +1,53 @@
+diff --git a/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec b/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec
+index 40e0668..528d32f 100644
+--- a/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec
++++ b/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec
+@@ -15,8 +15,18 @@ Pod::Spec.new do |s|
+   s.source         = { :git => "https://github.com/openwallet-foundation-labs/mdoc-data-transfer.git", :tag => "#{s.version}" }
+   s.static_framework = true
+ 
++  # SWIFT_INCLUDE_PATHS / FRAMEWORK_SEARCH_PATHS point at the shared per-
++  # configuration build products dir, where Xcode writes the .swiftmodule of
++  # every Swift package it builds for the workspace. The SPM packages this pod
++  # imports (MdocSecurity18013, WalletStorage and their transitive
++  # MdocDataModel18013 / SwiftCBOR / Logging) are declared on the *app* target
++  # by plugins/withMdocSpmOnAppTarget.js instead of here — see the long comment
++  # in that file. These search paths are what still lets this pod `import` them
++  # at compile time even though it no longer links them.
+   s.pod_target_xcconfig = {
+     'DEFINES_MODULE' => 'YES',
++    'SWIFT_INCLUDE_PATHS' => '$(inherited) "${BUILT_PRODUCTS_DIR}"',
++    'FRAMEWORK_SEARCH_PATHS' => '$(inherited) "${BUILT_PRODUCTS_DIR}/PackageFrameworks"',
+   }
+ 
+   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
+@@ -25,18 +35,15 @@ Pod::Spec.new do |s|
+ 
+   install_modules_dependencies(s)
+ 
+-  if defined?(:spm_dependency)
+-    spm_dependency(s,  
+-      url: 'https://github.com/eu-digital-identity-wallet/eudi-lib-ios-iso18013-security.git', 
+-      requirement: {kind: 'upToNextMinorVersion', minimumVersion: '0.8.2'}, 
+-      products: ['MdocSecurity18013'] 
+-    ) 
+-    spm_dependency(s,  
+-      url: 'https://github.com/eu-digital-identity-wallet/eudi-lib-ios-wallet-storage.git', 
+-      requirement: {kind: 'upToNextMinorVersion', minimumVersion: '0.8.4'}, 
+-      products: ['WalletStorage'] 
+-    ) 
+-  else 
+-    raise "Please upgrade React Native to >=0.75.0 to use SPM dependencies." 
+-  end 
++  # The two `spm_dependency(...)` calls that used to live here were removed on
++  # purpose. They attached the SPM package products to THIS (static) pod target,
++  # which made Xcode pass every resolved SPM object file to `libtool -static`
++  # twice — once via MdocDataTransfer.LinkFileList and once as an explicit
++  # argument — producing an archive with two complete copies of the shared
++  # dependency closure and 15,640 duplicate symbols at the final app link.
++  #
++  # The packages are now declared on the app target instead, by
++  # plugins/withMdocSpmOnAppTarget.js, so they get linked exactly once into the
++  # executable. This pod still imports the modules; see the pod_target_xcconfig
++  # search paths above for how that keeps resolving.
+ end

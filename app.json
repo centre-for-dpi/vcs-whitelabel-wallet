@@ -89,7 +89,7 @@
           }
         }
       ],
-      "./plugins/withMdocDataTransferDynamic"
+      "./plugins/withMdocSpmOnAppTarget"
     ],
     "extra": {
       "router": {},
