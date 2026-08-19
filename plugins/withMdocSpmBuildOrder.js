@@ -10,151 +10,167 @@ const { withPodfile } = require('@expo/config-plugins');
 // shared per-configuration products dir on its SWIFT_INCLUDE_PATHS so those
 // imports can resolve.
 //
-// That search path works — but it is only half the problem. Run 32274046079
-// proved it: the pod's compile line resolved to
+// That search path is correct — run 32274046079 showed the pod's compile line
+// resolving to `-I .../Build/Products/Release-iphoneos`, and three of the five
+// modules importing cleanly through it. What was still missing is *ordering*:
+// with the products declared only on the app target, the dependency graph had
+// no edge between the pod and the SPM targets, so Xcode scheduled them
+// concurrently and the pod compiled 2.1s before MdocSecurity18013 and
+// WalletStorage had written their .swiftmodule.
 //
-//     -I .../Build/Products/Release-iphoneos          <- the shared root
+// ---------------------------------------------------------------------------
+// Why the obvious fix did not work
+// ---------------------------------------------------------------------------
+// The first attempt at this plugin (commit 2e81148) added a PBXTargetDependency
+// carrying only `product_ref` to the pod target — the "Dependencies" list,
+// deliberately avoiding the "Link Binary With Libraries" list so no SPM object
+// could reach `libtool -static`. The hook ran and reported success:
 //
-// exactly as intended, and three of the five modules imported cleanly through
-// it. The build still failed with one error:
+//     [mdoc-spm-order] MdocDataTransfer now waits for Swift package product
+//                      'MdocSecurity18013'.
 //
-//     .../eudi/BLETransfer/MdocGATTServer.swift:22:8:
-//     error: no such module 'MdocSecurity18013'
+// but run 32284697230 showed Xcode silently ignoring it. Its dependency graph
+// dump lists all 22 explicit dependencies of the pod target and not one of them
+// is an SPM product:
 //
-// The timestamps in that run show this is a *scheduling race*, not a lookup
-// failure. When each module's .swiftmodule landed in the shared products dir,
-// versus when the pod started compiling at 16:22:00.174:
+//     Target 'MdocDataTransfer' in project 'Pods'
+//         ➜ Explicit dependency on target 'ExpoModulesCore' in project 'Pods'
+//         ➜ Explicit dependency on target 'RCTRequired' in project 'Pods'
+//         ... 20 more, all ordinary pod targets ...
 //
-//     Logging             16:16:07.523   ready  (7m early)
-//     SwiftCBOR           16:21:26.893   ready
-//     MdocDataModel18013  16:21:27.108   ready
-//     WalletStorage       16:22:02.293   2.1s TOO LATE
-//     MdocSecurity18013   16:22:02.316   2.1s TOO LATE
+// while the *app* target's entry does carry them:
 //
-// Only MdocSecurity18013 is named in the error because it is the earlier
-// `import` line of the two; WalletStorage would have failed next.
+//     Target 'CDPIWallet' in project 'CDPIWallet'
+//         ➜ Explicit dependency on target 'MdocSecurity18013' in project 'MdocSecurity18013'
+//         ➜ Explicit dependency on target 'WalletStorage' in project 'WalletStorage'
 //
-// The cause is structural. Xcode derives build order from the target
-// dependency graph. Because the package products are declared on the app
-// target, the graph says "app depends on MdocSecurity18013" and "app depends
-// on MdocDataTransfer" — but there is no edge at all between the pod and the
-// SPM targets. Xcode is therefore free to schedule them concurrently, and on a
-// parallel CI machine it does. The three modules that worked were not
-// correctly ordered, merely lucky: they finished early enough because other
-// packages depend on them, so they sit deeper in the graph.
-//
-// Note this is also why React Native's own spm.rb gets away with the same bare
-// SWIFT_INCLUDE_PATHS workaround: there the products stay attached to the pod
-// target, which gives Xcode the implicit ordering edge for free. We removed
-// that attachment on purpose, so we have to restore the edge by hand.
+// The reason is that the XCSwiftPackageProductDependency the pod's dependency
+// pointed at belongs to an XCRemoteSwiftPackageReference owned by
+// CDPIWallet.xcodeproj, while the dependency itself lives in Pods.xcodeproj.
+// Xcode does not resolve a package product across project boundaries, so it
+// drops the edge instead of reporting an error. WalletStorage happened to land
+// 12s before the pod that run purely by luck, so only MdocSecurity18013 failed.
 //
 // ---------------------------------------------------------------------------
 // The fix
 // ---------------------------------------------------------------------------
-// Add a PBXTargetDependency from the pod target to each SPM product, using the
-// `product_ref` attribute (xcodeproj supports it since 1.13.0, "Add support for
-// productRef attribute for PBXTargetDependency", CocoaPods/Xcodeproj#715).
+// Give Pods.xcodeproj its *own* XCRemoteSwiftPackageReference for each package
+// (same URL and version requirement as the app project's) and hang the pod's
+// XCSwiftPackageProductDependency off that local reference. This is the shape
+// CocoaPods/CocoaPods#11214 landed on for "No such module on using swift
+// package in cocoapods generated targets": package reference in
+// pods_project.root_object.package_references, product in the pod target's
+// package_product_dependencies.
 //
-// This is deliberately NOT the same as re-adding the products to the pod's
-// `package_product_dependencies`. Xcode keeps two separate lists:
+// Crucially we stop there. That issue's recipe has a third step — appending a
+// PBXBuildFile to the target's Frameworks build phase — and we deliberately
+// skip it. That build phase is the *linking* list, and it is what fed every SPM
+// object into `libtool -static` twice and produced the 15,640 duplicate
+// symbols. package_product_dependencies alone gives Xcode the ordering edge and
+// the module search path; the objects are still linked exactly once, into the
+// app, by withMdocSpmOnAppTarget.js.
 //
-//   * Build Phases -> Dependencies       -> PBXTargetDependency  (ORDER only)
-//   * Build Phases -> Link Binary With…  -> PBXBuildFile         (LINKING)
-//
-// We touch only the first. The pod gains "wait for this package to finish
-// building" without absorbing a single SPM object file, so nothing gets fed to
-// `libtool -static` and the duplicate symbols stay gone. The objects are still
-// linked exactly once, into the app, by withMdocSpmOnAppTarget.js.
+// Two package references to the same URL do not double-build the package:
+// Xcode resolves packages workspace-wide (the log's "Prepare packages" step
+// lists each repo once) and both references bind to the same resolved target.
 //
 // This has to run as a Podfile post_install hook rather than a withXcodeProject
-// mod because the pod target lives in Pods.xcodeproj, which does not exist yet
-// at prebuild time — CocoaPods generates it during `pod install`.
+// mod because Pods.xcodeproj does not exist at prebuild time — CocoaPods
+// generates it during `pod install`.
 // ---------------------------------------------------------------------------
 
 const POD_TARGET = 'MdocDataTransfer';
 
-// The pod imports five SPM modules, but only these two need an explicit edge.
-// The other three (MdocDataModel18013, SwiftCBOR, Logging) are *upstream*
-// dependencies of these two inside SPM's own package graph, so ordering after
-// MdocSecurity18013 and WalletStorage already orders after all of them. Run
-// 32274046079 shows the graph resolving in exactly that order:
-//
-//     Logging             16:16:07
-//     SwiftCBOR           16:21:26   } upstream of MdocSecurity18013,
-//     MdocDataModel18013  16:21:27   } which links them
-//     WalletStorage       16:22:02.293
-//     MdocSecurity18013   16:22:02.316   <- last to finish
-//
-// These are also the only two products declared on the app target, so they are
-// the only two we can reference: the transitive ones have no
-// XCSwiftPackageProductDependency object to point a product_ref at.
-const SPM_PRODUCTS = ['MdocSecurity18013', 'WalletStorage'];
+// The pod imports five SPM modules, but only these two need declaring. The
+// other three (MdocDataModel18013, SwiftCBOR, Logging) are upstream of these
+// two inside SPM's own package graph, so ordering after these orders after all
+// of them — run 32284697230 confirms it, with Logging/SwiftCBOR/
+// MdocDataModel18013 all finishing before MdocSecurity18013 and WalletStorage.
+const PACKAGES = [
+  {
+    name: 'eudi-lib-ios-iso18013-security',
+    url: 'https://github.com/eu-digital-identity-wallet/eudi-lib-ios-iso18013-security.git',
+    minimumVersion: '0.8.2',
+    products: ['MdocSecurity18013'],
+  },
+  {
+    name: 'eudi-lib-ios-wallet-storage',
+    url: 'https://github.com/eu-digital-identity-wallet/eudi-lib-ios-wallet-storage.git',
+    minimumVersion: '0.8.4',
+    products: ['WalletStorage'],
+  },
+];
 
-const ANCHOR = 'post_install do |installer|';
+// The hook must run AFTER react_native_post_install, not merely inside the
+// post_install block. That helper calls SPM.apply_on_post_install, whose first
+// action is clean_spm_dependencies_from_target:
+//
+//     project.root_object.package_references.delete_if { |pkg|
+//       (pkg.class == Xcodeproj::Project::Object::XCRemoteSwiftPackageReference) }
+//
+// It deletes *every* remote package reference in the Pods project
+// unconditionally, not just ones it created. Splicing before that call would
+// have the reference added and then silently deleted on the same pod install.
+// Anchor on the end of the react_native_post_install(...) call instead.
+const ANCHOR = /(\n(\s*)react_native_post_install\([\s\S]*?\n\2\))/;
 
 const HOOK = `
     # >>> withMdocSpmBuildOrder (managed by plugins/withMdocSpmBuildOrder.js)
-    # Give the ${POD_TARGET} pod target an explicit build-order dependency on
-    # the Swift package products it imports. Those products are attached to the
-    # app target (plugins/withMdocSpmOnAppTarget.js) to avoid duplicate symbols,
-    # which leaves no edge between the pod and the packages — so Xcode schedules
-    # them in parallel and the pod can compile before MdocSecurity18013 and
-    # WalletStorage have written their .swiftmodule. That is the
-    # "no such module 'MdocSecurity18013'" failure in run 32274046079.
+    # Declare the EUDI Swift packages on the ${POD_TARGET} pod target so Xcode
+    # builds them before it. The products are also on the app target
+    # (plugins/withMdocSpmOnAppTarget.js), which is where they actually get
+    # linked; the declaration here is purely for ordering and module lookup.
     #
-    # PBXTargetDependency#product_ref adds the package to the target's
-    # Dependencies list only. It does NOT add it to Link Binary With Libraries,
-    # so no SPM object is pulled into the pod's static archive and the 15,640
-    # duplicate symbols do not come back.
-    mdoc_spm_products = ${JSON.stringify(SPM_PRODUCTS)}
-    mdoc_pod_target = installer.pods_project.targets.find { |t| t.name == '${POD_TARGET}' }
+    # The package reference has to be created in Pods.xcodeproj rather than
+    # reused from the app project: in run 32284697230 a PBXTargetDependency in
+    # Pods.xcodeproj pointing at the app project's package product was silently
+    # dropped from the dependency graph, and the pod compiled 2.1s before
+    # MdocSecurity18013 finished ("no such module 'MdocSecurity18013'").
+    #
+    # NOTE: nothing below touches the Frameworks build phase. That is the
+    # linking list, and adding to it is what fed every SPM object to
+    # 'libtool -static' twice and produced the 15,640 duplicate symbols.
+    # package_product_dependencies alone gives ordering without linking.
+    mdoc_packages = [
+${PACKAGES.map(
+  (p) =>
+    `      { 'url' => '${p.url}', 'version' => '${p.minimumVersion}', 'products' => ${JSON.stringify(
+      p.products
+    ).replace(/"/g, "'")} },`
+).join('\n')}
+    ]
+
+    mdoc_pods_project = installer.pods_project
+    mdoc_pod_target = mdoc_pods_project && mdoc_pods_project.targets.find { |t| t.name == '${POD_TARGET}' }
 
     if mdoc_pod_target.nil?
-      Pod::UI.warn "[mdoc-spm-order] Pod target '${POD_TARGET}' not found; skipping build-order fix."
-    else
-      # The package references live on the *app* project, not the Pods project,
-      # so resolve the product dependency objects from there.
-      app_project = installer.aggregate_targets
-        .map(&:user_project)
-        .compact
-        .uniq { |p| p.path.to_s }
-        .first
+      raise "[mdoc-spm-order] Pod target '${POD_TARGET}' not found in Pods.xcodeproj. " \\
+            "Without it the pod compiles before its Swift packages exist, which is the " \\
+            "\\"no such module\\" failure this hook prevents."
+    end
 
-      if app_project.nil?
-        Pod::UI.warn "[mdoc-spm-order] Could not resolve the app project; skipping build-order fix."
-      else
-        app_target = app_project.targets.find { |t| t.respond_to?(:product_type) && t.product_type == 'com.apple.product-type.application' }
+    mdoc_packages.each do |pkg|
+      package_ref = mdoc_pods_project.root_object.package_references.find do |r|
+        r.is_a?(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference) && r.repositoryURL == pkg['url']
+      end
 
-        if app_target.nil?
-          Pod::UI.warn "[mdoc-spm-order] Could not find the application target; skipping build-order fix."
-        else
-          mdoc_spm_products.each do |product_name|
-            product_ref = app_target.package_product_dependencies.find { |d| d.product_name == product_name }
+      if package_ref.nil?
+        package_ref = mdoc_pods_project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+        package_ref.repositoryURL = pkg['url']
+        package_ref.requirement = { 'kind' => 'upToNextMinorVersion', 'minimumVersion' => pkg['version'] }
+        mdoc_pods_project.root_object.package_references << package_ref
+        Pod::UI.puts "[mdoc-spm-order] Added package reference #{pkg['url']} to Pods.xcodeproj."
+      end
 
-            if product_ref.nil?
-              # Both products are put on the app target by
-              # plugins/withMdocSpmOnAppTarget.js, which runs during prebuild —
-              # long before this hook. If one is missing, that plugin silently
-              # did not apply, and continuing would rebuild the exact race this
-              # fix exists to close. Fail loudly instead of shipping a build
-              # that only works when the scheduler happens to cooperate.
-              raise "[mdoc-spm-order] Swift package product '#{product_name}' is not declared on " \\
-                    "app target '#{app_target.name}'. withMdocSpmOnAppTarget.js should have added it " \\
-                    "during prebuild. Without it the ${POD_TARGET} pod can compile before the module " \\
-                    "exists, which is the 'no such module' failure this hook prevents."
-            end
+      pkg['products'].each do |product_name|
+        existing = mdoc_pod_target.package_product_dependencies.find { |d| d.product_name == product_name }
+        next if existing
 
-            already = mdoc_pod_target.dependencies.any? do |d|
-              d.respond_to?(:product_ref) && d.product_ref && d.product_ref.product_name == product_name
-            end
-            next if already
-
-            dependency = mdoc_pod_target.project.new(Xcodeproj::Project::Object::PBXTargetDependency)
-            dependency.product_ref = product_ref
-            mdoc_pod_target.dependencies << dependency
-            Pod::UI.puts "[mdoc-spm-order] ${POD_TARGET} now waits for Swift package product '#{product_name}'."
-          end
-        end
+        product_ref = mdoc_pods_project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+        product_ref.package = package_ref
+        product_ref.product_name = product_name
+        mdoc_pod_target.package_product_dependencies << product_ref
+        Pod::UI.puts "[mdoc-spm-order] ${POD_TARGET} now depends on Swift package product '#{product_name}'."
       end
     end
     # <<< withMdocSpmBuildOrder
@@ -168,16 +184,18 @@ module.exports = function withMdocSpmBuildOrder(config) {
       return cfg;
     }
 
-    if (!contents.includes(ANCHOR)) {
+    if (!ANCHOR.test(contents)) {
       throw new Error(
-        `withMdocSpmBuildOrder: could not find "${ANCHOR}" in the generated Podfile. ` +
-          'CocoaPods rejects a second post_install hook ("Specifying multiple post_install ' +
-          'hooks is unsupported"), so the code must be spliced into the existing one. ' +
-          'The Expo template changed — update the anchor.'
+        'withMdocSpmBuildOrder: could not find the react_native_post_install(...) call in the ' +
+          'generated Podfile. CocoaPods rejects a second post_install hook ("Specifying multiple ' +
+          'post_install hooks is unsupported"), so the code must be spliced into the existing one — ' +
+          'and it must land AFTER react_native_post_install, which deletes every ' +
+          'XCRemoteSwiftPackageReference in the Pods project. The Expo template changed — update ' +
+          'the anchor.'
       );
     }
 
-    cfg.modResults.contents = contents.replace(ANCHOR, `${ANCHOR}\n${HOOK}`);
+    cfg.modResults.contents = contents.replace(ANCHOR, `$1\n${HOOK}`);
     return cfg;
   });
 };
