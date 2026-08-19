@@ -91,9 +91,7 @@
             "deploymentTarget": "16.4"
           }
         }
-      ],
-      "./plugins/withMdocSpmOnAppTarget",
-      "./plugins/withMdocSpmBuildOrder"
+      ]
     ],
     "extra": {
       "router": {},
