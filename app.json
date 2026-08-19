@@ -89,9 +89,13 @@
           "ios": {
             "useFrameworks": "static",
             "deploymentTarget": "16.4"
+          },
+          "android": {
+            "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "./plugins/withMdocArchiveDedup"
     ],
     "extra": {
       "router": {},
