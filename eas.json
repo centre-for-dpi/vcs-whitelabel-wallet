@@ -15,6 +15,12 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "ios-simulator-linking-test": {
+      "ios": {
+        "simulator": true,
+        "image": "latest"
+      }
     }
   },
   "submit": {
