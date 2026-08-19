@@ -97,9 +97,22 @@ module.exports = function withMdocSpmOnAppTarget(config) {
 
     // The app target — the one that produces the .app. Pod targets live in a
     // separate Pods.xcodeproj, so everything here is scoped to the app project.
-    const target = proj.getFirstTarget();
+    // Select by productType rather than getFirstTarget(): that helper just
+    // takes targets[0], which happens to be the app in an Expo-generated
+    // project but would silently attach the packages to the wrong target if
+    // another plugin ever prepends one.
+    // NB: getTarget() returns { uuid, target } while getFirstTarget() returns
+    // { uuid, firstTarget } — normalise the two shapes before using them.
+    const appTarget = proj.getTarget('com.apple.product-type.application');
+    const target = appTarget || proj.getFirstTarget();
     const targetUuid = target.uuid;
-    const targetObj = target.firstTarget;
+    const targetObj = appTarget ? appTarget.target : target.firstTarget;
+
+    if (!targetObj) {
+      throw new Error(
+        'withMdocSpmOnAppTarget: could not find the application target in the Xcode project'
+      );
+    }
 
     projectObj.packageReferences = projectObj.packageReferences || [];
     targetObj.packageProductDependencies =
