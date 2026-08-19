@@ -112,6 +112,8 @@ const es: Translation = {
   settings: {
     section_session: 'Sesión',
     sign_out: 'Cerrar sesión',
+    sign_in: 'Iniciar sesión',
+    not_signed_in: 'No tenés una sesión iniciada con una cuenta de identidad nacional.',
     section_wallet: 'Billetera',
     row_name: 'Nombre',
     row_agent: 'Estado del agente',
@@ -240,6 +242,9 @@ const es: Translation = {
     retry: 'Reintentar',
     issue_error: 'No se pudo obtener esta credencial.',
     not_eligible: 'Tu identidad aún no cubre los datos de esta credencial.',
+    session_expired: 'Tu sesión expiró. Cerrá sesión e iniciá sesión nuevamente para continuar.',
+    no_national_id_title: 'Verificación de identidad requerida',
+    no_national_id_body: 'Para acceder a este servicio necesitás tener tu cédula de identidad verificada. Completá la verificación con tu proveedor de identidad.',
   },
   modals: {
     receive: 'Recibir credencial',

@@ -13,7 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { branding, discoveryConfig, trustRegistry } from '../../branding.config';
 import { useUser } from '../../src/auth/UserContext';
-import { getOidcIdToken } from '../../src/utils/storage';
+import { getOidcAccessToken, getOidcIdToken } from '../../src/utils/storage';
 import { checkTrust, TRUST_COLORS, TRUST_ICONS, type TrustStatus } from '../../src/agent/trust';
 
 // Shapes returned by the hub catalog: GET ${hubUrl}/api/v1/discovery/credentials
@@ -32,29 +32,124 @@ type CatalogIssuer = {
   credentials: CatalogCredential[] | null;
 };
 
+// isJwtExpired decodes the payload of a JWT (base64url, no signature check) and
+// returns true when the exp claim is within 60 s of expiry or already past.
+// The 60 s buffer ensures the wallet refreshes proactively before the server
+// rejects the token, absorbing clock skew and network latency.
+// Returns false on malformed tokens so the server gets a chance to decide.
+const JWT_EXPIRY_BUFFER_MS = 60_000;
+function isJwtExpired(token: string): boolean {
+  try {
+    const part = token.split('.')[1];
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64)) as { exp?: number };
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now() + JWT_EXPIRY_BUFFER_MS;
+  } catch {
+    return false;
+  }
+}
+
+// tokenHasNationalId decodes the JWT payload (no signature check — client-side
+// only) and returns true when the token carries a national-ID-equivalent claim.
+// Covers the same aliases as verifiably-go identity_prefill.go so the gating
+// decision and the server's eligibility check stay in lockstep.
+function tokenHasNationalId(token: string): boolean {
+  try {
+    const part = token.split('.')[1];
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const p = JSON.parse(atob(base64)) as Record<string, unknown>;
+    return !!(p.national_id || p.nationalId || p.cedula || p.dni);
+  } catch {
+    return false;
+  }
+}
+
+// EligibilityMap maps "serviceEndpoint|credentialId" → true for eligible credentials.
+type EligibilityMap = Set<string>;
+
+function eligibilityKey(serviceEndpoint: string, credId: string): string {
+  return `${serviceEndpoint}|${credId}`;
+}
+
 export default function Discover() {
   const { t } = useTranslation();
   const { user, refreshUser } = useUser();
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [state, setState] = useState<'loading' | 'ready' | 'error' | 'no_national_id'>('loading');
   const [errorKey, setErrorKey] = useState<'error' | 'error_unavailable'>('error');
   const [issuers, setIssuers] = useState<CatalogIssuer[]>([]);
+  const [eligibility, setEligibility] = useState<EligibilityMap | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setState('loading');
     try {
+      // Verify the citizen has a national_id before fetching the catalog.
+      // Without it they cannot self-issue any credential, so show a clear
+      // "verify your identity" screen rather than an empty list.
+      await refreshUser().catch(() => {});
+      let token = await getOidcAccessToken() ?? await getOidcIdToken();
+      // Force a real IdP refresh if the JWT is near-expiry/expired or doesn't
+      // carry national_id yet (stale stored expiry or pre-mapper token).
+      if (!token || isJwtExpired(token) || !tokenHasNationalId(token)) {
+        const refreshOk = await refreshUser(true).catch(() => false);
+        if (refreshOk) token = await getOidcAccessToken() ?? await getOidcIdToken();
+      }
+      // If we still don't have a token with national_id, block with the
+      // appropriate screen.
+      if (!token || !tokenHasNationalId(token)) {
+        setState('no_national_id');
+        return;
+      }
+      // If the session is truly expired (refresh_token also gone), tell the
+      // user to sign in again rather than silently calling APIs with a dead token.
+      if (isJwtExpired(token)) {
+        setErrorKey('error');
+        setState('error');
+        return;
+      }
+
       const resp = await fetch(`${discoveryConfig.hubUrl}/api/v1/discovery/credentials`);
       if (!resp.ok) throw new Error(`catalog ${resp.status}`);
       const data = (await resp.json()) as { issuers?: CatalogIssuer[] };
-      setIssuers(Array.isArray(data.issuers) ? data.issuers : []);
+      const loadedIssuers = Array.isArray(data.issuers) ? data.issuers : [];
+      setIssuers(loadedIssuers);
+
+      // Check eligibility per issuer. Failures are non-fatal: if a check
+      // fails, we still show eligible credentials from other issuers and the
+      // server enforces eligibility at self-issue time anyway.
+      const eligible = new Set<string>();
+      await Promise.all(
+        loadedIssuers.map(async (issuer) => {
+          const base = (issuer.service_endpoint ?? '').replace(/\/$/, '');
+          if (!base) return;
+          try {
+            const er = await fetch(`${base}/api/v1/credentials/eligible`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ access_token: token }),
+            });
+            if (!er.ok) {
+              console.warn('[discover] eligibility fetch failed', base, er.status);
+              return;
+            }
+            const ed = (await er.json()) as { credentials?: { id: string; available: boolean }[] };
+            for (const c of ed.credentials ?? []) {
+              if (c.available) eligible.add(eligibilityKey(base, c.id));
+            }
+          } catch (e) {
+            console.warn('[discover] eligibility error', base, e);
+          }
+        })
+      );
+      setEligibility(eligible);
       setState('ready');
     } catch (e) {
       console.error('[discover] load failed:', e);
       setErrorKey(e instanceof TypeError ? 'error_unavailable' : 'error');
       setState('error');
     }
-  }, []);
+  }, [refreshUser]);
 
   useEffect(() => {
     if (discoveryConfig.enabled && user) load();
@@ -71,10 +166,16 @@ export default function Discover() {
   // self-service endpoint. On success it returns a pre-auth credential offer we
   // hand straight to the existing /receive (OID4VCI) flow.
   const onGet = async (issuer: CatalogIssuer, cred: CatalogCredential) => {
-    await refreshUser().catch(() => {}); // best-effort: ensure the id_token isn't stale
-    const idToken = await getOidcIdToken();
-    if (!idToken) {
+    await refreshUser().catch(() => {}); // ensures access_token is current
+    const accessToken = await getOidcAccessToken() ?? await getOidcIdToken();
+    if (!accessToken) {
       Alert.alert(t('discover.title'), t('discover.login_required'));
+      return;
+    }
+    // If the refresh failed (e.g. refresh_token also expired), the stored
+    // access_token may still be expired. Catch it before the server does.
+    if (isJwtExpired(accessToken)) {
+      Alert.alert(t('discover.title'), t('discover.session_expired'));
       return;
     }
     const base = (issuer.service_endpoint ?? '').replace(/\/$/, '');
@@ -87,7 +188,7 @@ export default function Discover() {
       const resp = await fetch(`${base}/api/v1/credentials/self-issue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idToken, credential_configuration_id: cred.id }),
+        body: JSON.stringify({ access_token: accessToken, credential_configuration_id: cred.id }),
       });
       if (resp.status === 403) {
         Alert.alert(t('discover.title'), t('discover.not_eligible'));
@@ -136,6 +237,16 @@ export default function Discover() {
     );
   }
 
+  if (state === 'no_national_id') {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.bigIcon}>🪪</Text>
+        <Text style={styles.loginRequiredTitle}>{t('discover.no_national_id_title')}</Text>
+        <Text style={styles.loginRequiredBody}>{t('discover.no_national_id_body')}</Text>
+      </View>
+    );
+  }
+
   const hasAny = issuers.some((i) => (i.credentials?.length ?? 0) > 0);
 
   return (
@@ -149,7 +260,13 @@ export default function Discover() {
       {!hasAny && <Text style={styles.empty}>{t('discover.empty')}</Text>}
 
       {issuers.map((issuer) => {
-        const creds = issuer.credentials ?? [];
+        const base = (issuer.service_endpoint ?? '').replace(/\/$/, '');
+        const allCreds = issuer.credentials ?? [];
+        // When eligibility data is loaded, show only credentials the citizen
+        // can actually obtain. Fall back to all credentials if the check failed.
+        const creds = eligibility !== null
+          ? allCreds.filter((c) => eligibility.has(eligibilityKey(base, c.id)))
+          : allCreds;
         if (creds.length === 0) return null;
         const trust: TrustStatus = checkTrust(issuer.service_endpoint ?? issuer.did, trustRegistry);
         return (

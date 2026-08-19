@@ -159,7 +159,7 @@ export default function Unlock() {
         discovery,
       );
 
-      await saveOidcTokens(tokenResp.refreshToken, tokenResp.expiresIn, tokenResp.idToken);
+      await saveOidcTokens(tokenResp.refreshToken, tokenResp.expiresIn, tokenResp.idToken, tokenResp.accessToken);
 
       if (discovery.userInfoEndpoint) {
         const uiResp = await fetch(discovery.userInfoEndpoint, {

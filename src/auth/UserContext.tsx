@@ -16,8 +16,9 @@ type UserContextType = {
   user: OidcUser | null;
   setUser: (user: OidcUser) => Promise<void>;
   clearUser: () => Promise<void>;
-  /** Silently refresh the OIDC token. Returns true if the session is still valid. */
-  refreshUser: () => Promise<boolean>;
+  /** Silently refresh the OIDC token. Returns true if the session is still valid.
+   *  Pass force=true to bypass the expiry check and always hit the IdP. */
+  refreshUser: (force?: boolean) => Promise<boolean>;
 };
 
 const UserContext = createContext<UserContextType>({
@@ -63,12 +64,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserState(null);
   };
 
-  const refreshUser = useCallback(async (): Promise<boolean> => {
+  const refreshUser = useCallback(async (force = false): Promise<boolean> => {
     if (!oidcConfig.enabled) return false;
     const refreshToken = await getOidcRefreshToken();
     if (!refreshToken) return false;
-    const expired = await isOidcTokenExpired();
-    if (!expired) return true; // still valid
+    if (!force) {
+      const expired = await isOidcTokenExpired();
+      if (!expired) return true; // still valid
+    }
 
     try {
       const discovery = await AuthSession.fetchDiscoveryAsync(oidcConfig.issuerUrl);
@@ -79,7 +82,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         discovery,
       );
 
-      await saveOidcTokens(tokenResp.refreshToken ?? refreshToken, tokenResp.expiresIn, tokenResp.idToken);
+      await saveOidcTokens(tokenResp.refreshToken ?? refreshToken, tokenResp.expiresIn, tokenResp.idToken, tokenResp.accessToken);
 
       if (discovery.userInfoEndpoint) {
         const resp = await fetch(discovery.userInfoEndpoint, {
