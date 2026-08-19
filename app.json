@@ -88,7 +88,8 @@
             "deploymentTarget": "16.4"
           }
         }
-      ]
+      ],
+      "./plugins/withMdocDataTransferDynamic"
     ],
     "extra": {
       "router": {},
