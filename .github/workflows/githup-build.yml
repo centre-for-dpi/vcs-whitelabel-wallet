@@ -63,8 +63,31 @@ jobs:
       # El runner tiene el SDK (iphoneos18.2) pero no los archivos de soporte de
       # plataforma requeridos por -destination generic/platform=iOS. Esta descarga
       # los instala (~2-5 min, solo en cache miss).
+      #
+      # El comando falla de forma intermitente con "Unable to connect to
+      # simulator" (exit 70) por un problema de infraestructura del runner, no
+      # del proyecto: ocurrió tanto en el commit limpio 5030215 (run 32210776713)
+      # como en run 32271554178, y en ambos casos abortó el workflow ANTES de
+      # llegar a compilar. Se reintenta y, si aun así falla, se continúa: los
+      # archivos de plataforma suelen estar ya presentes, y si de verdad
+      # faltaran, el paso "Compilar Aplicación" fallará con un error explícito
+      # en vez de enmascarar el problema aquí.
       - name: Descargar plataforma iOS
-        run: xcodebuild -downloadPlatform iOS
+        continue-on-error: true
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::Intento $attempt de xcodebuild -downloadPlatform iOS"
+            if xcodebuild -downloadPlatform iOS; then
+              echo "::endgroup::"
+              echo "Plataforma iOS lista (intento $attempt)."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Intento $attempt falló; reintentando en 30s..."
+            sleep 30
+          done
+          echo "No se pudo descargar la plataforma iOS tras 3 intentos."
+          echo "Se continúa: 'Compilar Aplicación' fallará explícitamente si faltan."
 
       - name: Compilar Aplicación
         run: |
