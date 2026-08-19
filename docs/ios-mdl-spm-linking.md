@@ -1,30 +1,33 @@
 # iOS: mDL (expo-mdoc-data-transfer) and Swift Package linking
 
-Status: **toolchain-dependent, likely fixed by moving off Xcode 16.2.**
-Originally diagnosed as an unresolvable upstream bug (see below); that
-conclusion was wrong in one important respect — it is not reproducible on
-every toolchain.
+Status: **unresolved for device builds.** Not an Xcode-version problem, and
+not fixed by upgrading the toolchain.
 
-**The evidence that changed it:** the same commit that fails in GitHub
-Actions builds cleanly on EAS Build
-(build `600b58de-e5b3-4f04-bf04-a86e5409f7ff`, 7m21s, artifact produced,
-unsigned simulator profile `ios-simulator-linking-test`). EAS runs a newer
-Xcode than the 16.2 this workflow pinned. The `macos-15` runner actually
-offers 16.3, 16.4 (its default) and several 26.x, so the pin was holding us
-on the one version where the bug reproduces. The workflow now selects 16.4.
+Two hypotheses were tested and ruled out:
 
-Caveat worth keeping in mind: the EAS run that proved this was a *simulator*
-build. Simulator and device builds differ in architecture and link flags, so
-a device build on a newer Xcode still needs to confirm the fix before this
-is fully settled.
+- **Newer Xcode.** The workflow was pinned to 16.2; the `macos-15` runner
+  also offers 16.3, 16.4 and several 26.x. Moving to **16.4 changed
+  nothing**: run 32300947471 failed with 16,088 duplicate symbols (vs 15,628
+  on 16.2), same mechanism — `-ObjC` present, and the pod's `libtool` still
+  fed the same 23 SPM objects twice.
+- **EAS Build.** The same commit *does* build cleanly on EAS
+  (`600b58de-e5b3-4f04-bf04-a86e5409f7ff`, 7m21s, artifact produced). That
+  looked like toolchain evidence, but the distinguishing variable was
+  **simulator vs device**, not Xcode: that EAS run used the unsigned
+  *simulator* profile, while this workflow links `Release-iphoneos` for a
+  real device. Simulator and device links differ in architecture and in how
+  `-ObjC` pulls archive members, which is exactly the documented trigger.
 
-Everything below documents the original Xcode 16.2 failure and the seven
-approaches tried against it. It remains accurate for that toolchain, and is
-worth keeping: if the bug resurfaces, this is the map of what does and
-doesn't work around it.
+So the bug reproduces on device builds regardless of Xcode version, and a
+passing simulator build is not evidence that it is fixed. Any future claim
+that it is resolved needs a **device** build to back it up.
 
-Last verified (failing): run 32292108405 (commit `ff5340a`), Xcode 16.2,
-RN 0.81.5, expo-mdoc-data-transfer 0.2.0-alpha.5.
+Everything below documents the mechanism and the seven approaches tried
+against it. It remains accurate.
+
+Last verified (failing): run 32300947471 (commit `5014783`), Xcode 16.4,
+RN 0.81.5, expo-mdoc-data-transfer 0.2.0-alpha.5. Previously: run
+32292108405 (`ff5340a`) on Xcode 16.2.
 
 ## Symptom
 
