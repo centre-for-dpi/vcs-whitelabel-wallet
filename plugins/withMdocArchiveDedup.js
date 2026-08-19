@@ -62,7 +62,8 @@ const RUBY_SNIPPET = `
       # ar x collapses same-named members, which is exactly the dedup we want.
       xcrun ar x "$LIB"
       xcrun ar t "$LIB" | sort -u > members.txt
-      xargs -a members.txt xcrun libtool -static -o "$LIB.dedup"
+      # BSD xargs (macOS) has no -a; feed the list on stdin instead.
+      xargs xcrun libtool -static -o "$LIB.dedup" < members.txt
       mv "$LIB.dedup" "$LIB"
       echo "note: archive rebuilt with $(xcrun ar t "$LIB" | wc -l | tr -d ' ') members."
     DEDUP_SH
