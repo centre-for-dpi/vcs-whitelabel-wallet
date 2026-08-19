@@ -85,7 +85,7 @@
         {
           "ios": {
             "useFrameworks": "dynamic",
-            "deploymentTarget": "16.0"
+            "deploymentTarget": "16.4"
           }
         }
       ]
