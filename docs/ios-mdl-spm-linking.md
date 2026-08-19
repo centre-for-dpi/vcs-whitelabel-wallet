@@ -1,8 +1,30 @@
 # iOS: mDL (expo-mdoc-data-transfer) and Swift Package linking
 
-Status: **unresolved upstream bug**, blocking the iOS Release build.
-Last verified: run 32292108405 (commit `ff5340a`), Xcode 16.2, RN 0.81.5,
-expo-mdoc-data-transfer 0.2.0-alpha.5.
+Status: **toolchain-dependent, likely fixed by moving off Xcode 16.2.**
+Originally diagnosed as an unresolvable upstream bug (see below); that
+conclusion was wrong in one important respect — it is not reproducible on
+every toolchain.
+
+**The evidence that changed it:** the same commit that fails in GitHub
+Actions builds cleanly on EAS Build
+(build `600b58de-e5b3-4f04-bf04-a86e5409f7ff`, 7m21s, artifact produced,
+unsigned simulator profile `ios-simulator-linking-test`). EAS runs a newer
+Xcode than the 16.2 this workflow pinned. The `macos-15` runner actually
+offers 16.3, 16.4 (its default) and several 26.x, so the pin was holding us
+on the one version where the bug reproduces. The workflow now selects 16.4.
+
+Caveat worth keeping in mind: the EAS run that proved this was a *simulator*
+build. Simulator and device builds differ in architecture and link flags, so
+a device build on a newer Xcode still needs to confirm the fix before this
+is fully settled.
+
+Everything below documents the original Xcode 16.2 failure and the seven
+approaches tried against it. It remains accurate for that toolchain, and is
+worth keeping: if the bug resurfaces, this is the map of what does and
+doesn't work around it.
+
+Last verified (failing): run 32292108405 (commit `ff5340a`), Xcode 16.2,
+RN 0.81.5, expo-mdoc-data-transfer 0.2.0-alpha.5.
 
 ## Symptom
 

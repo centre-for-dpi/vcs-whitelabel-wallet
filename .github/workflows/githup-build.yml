@@ -14,9 +14,18 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Seleccionar Xcode 16.2
+      # Xcode 16.2 (la versión que este paso fijaba antes) reproduce el bug de
+      # duplicate symbols descrito en docs/ios-mdl-spm-linking.md: al empaquetar
+      # el archivo estático del pod de mDL, mete los objetos de sus Swift
+      # packages dos veces. El mismo commit compila y enlaza sin problema en EAS
+      # Build (build 600b58de, 7m21s, artefacto generado), que usa un Xcode más
+      # reciente — evidencia de que el fallo depende del toolchain y no del
+      # proyecto. El runner macos-15 trae 16.3, 16.4 (default) y varias 26.x;
+      # se elige 16.4 por ser el default del runner y el salto más conservador
+      # desde 16.2.
+      - name: Seleccionar Xcode 16.4
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
           xcodebuild -version
 
       - name: Configurar Node.js
@@ -60,9 +69,10 @@ jobs:
           gem install cocoapods --no-document
           cd ios && pod install
 
-      # El runner tiene el SDK (iphoneos18.2) pero no los archivos de soporte de
-      # plataforma requeridos por -destination generic/platform=iOS. Esta descarga
-      # los instala (~2-5 min, solo en cache miss).
+      # El runner trae el SDK de iOS del Xcode seleccionado arriba, pero no los
+      # archivos de soporte de plataforma requeridos por
+      # -destination generic/platform=iOS. Esta descarga los instala
+      # (~2-5 min, solo en cache miss).
       #
       # El comando falla de forma intermitente con "Unable to connect to
       # simulator" (exit 70) por un problema de infraestructura del runner, no
