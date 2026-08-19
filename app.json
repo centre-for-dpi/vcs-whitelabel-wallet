@@ -85,7 +85,8 @@
         {
           "ios": {
             "useFrameworks": "dynamic",
-            "deploymentTarget": "16.4"
+            "deploymentTarget": "16.4",
+            "forceStaticLinking": ["react-native-get-random-values"]
           }
         }
       ]
