@@ -1,4 +1,4 @@
-import type { SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
+import type { MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
 import i18n from '../i18n';
 import { branding } from '../../branding.config';
 
@@ -45,16 +45,16 @@ export function issuerCardColor(issuer: string): string {
 
 export type CredentialEntry = {
   id: string;
-  format: 'sdjwt' | 'w3c';
+  format: 'sdjwt' | 'w3c' | 'mdoc';
   type: string;
   issuer: string;
   issuanceDate: string;
   expiryDate?: string; // ISO string; undefined = no expiry declared
   claims: Record<string, unknown>;
   selectiveFields: string[];
-  /** Subset of selectiveFields that are selectively disclosable (SD-JWT _sd claims). Empty for W3C. */
+  /** Subset of selectiveFields that are selectively disclosable (SD-JWT _sd claims). Empty for W3C/mdoc. */
   sdFields: string[];
-  rawRecord: SdJwtVcRecord | W3cCredentialRecord;
+  rawRecord: SdJwtVcRecord | W3cCredentialRecord | MdocRecord;
 };
 
 export type ExpiryStatus = 'expired' | 'expiring' | 'valid' | 'none';
@@ -327,6 +327,49 @@ export const fromW3cV2Record = (record: W3cV2CredentialRecord): CredentialEntry 
     selectiveFields,
     sdFields: [],
     rawRecord: record as unknown as W3cCredentialRecord,
+  };
+};
+
+/**
+ * mso_mdoc (ISO/IEC 18013-5, e.g. mDL). Unlike SD-JWT/W3C, mdoc has no issuer/vc
+ * envelope to read a display name or issuer identity from — the credentialName/
+ * issuerName tags set in storeCredential.ts are the only source for those; claims
+ * come from the (possibly multiple) IssuerSigned namespaces, flattened into one
+ * object since this wallet only ever displays a single namespace's worth of fields
+ * for mDL (org.iso.18013.5.1).
+ */
+export const fromMdocRecord = (record: MdocRecord): CredentialEntry => {
+  const mdoc = record.firstCredential;
+  const tags = record.getTags() as Record<string, unknown>;
+
+  const type = typeof tags.credentialName === 'string'
+    ? tags.credentialName
+    : cleanCredentialType(mdoc.docType.split('.').pop() ?? mdoc.docType);
+  const issuer = typeof tags.issuerName === 'string' ? tags.issuerName : i18n.t('receive.unknown_issuer');
+
+  const namespaces = mdoc.issuerSignedNamespaces ?? {};
+  const claims: Record<string, unknown> = {};
+  for (const ns of Object.values(namespaces)) Object.assign(claims, ns);
+
+  let issuanceDate = new Date().toISOString();
+  let expiryDate: string | undefined;
+  try {
+    const validity = mdoc.validityInfo as { signed?: Date; validUntil?: Date } | undefined;
+    if (validity?.signed) issuanceDate = new Date(validity.signed).toISOString();
+    if (validity?.validUntil) expiryDate = new Date(validity.validUntil).toISOString();
+  } catch { /* validityInfo not always parseable — fall back to defaults above */ }
+
+  return {
+    id: record.id,
+    format: 'mdoc',
+    type,
+    issuer,
+    issuanceDate,
+    expiryDate,
+    claims,
+    selectiveFields: Object.keys(claims),
+    sdFields: [],
+    rawRecord: record,
   };
 };
 

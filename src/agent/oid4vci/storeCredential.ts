@@ -1,4 +1,4 @@
-import { MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
+import { Mdoc, MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { CredentialResult } from './requestCredentials';
 
@@ -63,6 +63,23 @@ export async function storeOid4VciCredential(
     stored.setTag('holderKeyId', keyId);
     await agent.sdJwtVc.update(stored);
     console.log('[oid4vci] stored manual-jwt id:', stored.id, 'type:', credentialType);
+    return;
+  }
+
+  if (result.path === 'manual-mdoc') {
+    // mso_mdoc (ISO/IEC 18013-5, e.g. mDL) from a legacy endpoint's manual POST path:
+    // the credential is raw base64url IssuerSigned CBOR, not a JWT — build an Mdoc
+    // from it directly (mirrors MdocRecord.fromMdoc, but deviceKeyId must be set
+    // explicitly since this credential never went through Credo's own requestCredentials/
+    // credentialBindingResolver, which is what populates it in the 'credo' path below).
+    const { credential, keyId, docType, configId, displayName } = result;
+    const mdoc = Mdoc.fromBase64Url(credential, docType);
+    mdoc.deviceKeyId = keyId;
+    const stored = await agent.mdoc.store({ record: MdocRecord.fromMdoc(mdoc) });
+    stored.setTag('issuerName', meta.issuerName);
+    stored.setTag('credentialName', displayName ?? formatConfigId(configId));
+    await agent.mdoc.update(stored);
+    console.log('[oid4vci] stored manual-mdoc id:', stored.id, 'docType:', docType);
     return;
   }
 

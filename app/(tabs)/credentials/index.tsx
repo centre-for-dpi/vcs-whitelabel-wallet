@@ -27,6 +27,7 @@ import {
 } from '../../../src/components/NotchedSurface';
 import {
   CredentialEntry,
+  fromMdocRecord,
   fromSdJwtRecord,
   fromW3cRecord,
   fromW3cV2Record,
@@ -79,15 +80,17 @@ export default function CredentialList() {
     if (agentState.status !== 'ready') return;
     const { agent } = agentState;
     try {
-      const [sdJwtRecords, w3cRecords, w3cV2Records] = await Promise.all([
+      const [sdJwtRecords, w3cRecords, w3cV2Records, mdocRecords] = await Promise.all([
         agent.sdJwtVc.getAll(),
         agent.w3cCredentials.getAll(),
         agent.w3cV2Credentials.getAll(),
+        agent.mdoc.getAll(),
       ]);
       const all: CredentialEntry[] = [];
       for (const r of sdJwtRecords)  { try { all.push(fromSdJwtRecord(r));  } catch (e) { console.error('[cred] sdjwt:', e); } }
       for (const r of w3cRecords)    { try { all.push(fromW3cRecord(r));    } catch (e) { console.error('[cred] w3c:', e);   } }
       for (const r of w3cV2Records)  { try { all.push(fromW3cV2Record(r));  } catch (e) { console.error('[cred] w3cv2:', e); } }
+      for (const r of mdocRecords)   { try { all.push(fromMdocRecord(r));   } catch (e) { console.error('[cred] mdoc:', e);  } }
       all.sort((a, b) => new Date(b.issuanceDate).getTime() - new Date(a.issuanceDate).getTime());
       setEntries(all);
     } catch (e) {
@@ -120,6 +123,8 @@ export default function CredentialList() {
           const repo = agent.dependencyManager.resolve(SdJwtVcRepository);
           await repo.deleteById(agent.context, entry.id);
         }
+      } else if (entry.format === 'mdoc') {
+        await agent.mdoc.deleteById(entry.id);
       } else {
         try {
           await agent.w3cV2Credentials.deleteById(entry.id);

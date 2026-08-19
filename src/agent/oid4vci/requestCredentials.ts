@@ -47,6 +47,21 @@ export type ManualJwtResult = {
   credentialType: string; // specific type, e.g. 'AlumniCard'
 };
 
+/**
+ * Credential obtained via manual POST for mso_mdoc on legacy endpoints.
+ * Unlike ManualJwtResult, the credential endpoint returns raw base64url-encoded
+ * IssuerSigned CBOR (ISO/IEC 18013-5), not a compact JWT — it must not be parsed
+ * as one (storeCredential.ts builds an Mdoc/MdocRecord from this instead).
+ */
+export type ManualMdocResult = {
+  path: 'manual-mdoc';
+  configId: string;
+  displayName?: string;
+  credential: string; // base64url IssuerSigned CBOR
+  keyId: string;
+  docType: string;
+};
+
 /** Credential obtained via Credo's standard requestCredentials path. */
 export type CredoResult = {
   path: 'credo';
@@ -54,7 +69,7 @@ export type CredoResult = {
   record: unknown;
 };
 
-export type CredentialResult = DcSdJwtResult | ManualJwtResult | CredoResult;
+export type CredentialResult = DcSdJwtResult | ManualJwtResult | ManualMdocResult | CredoResult;
 
 /**
  * Returns true when the issuer is known to produce non-conformant credential responses
@@ -94,7 +109,17 @@ function proofOptionsFromConfig(config: Record<string, unknown>): ProofOptions {
   const algorithm = issuerAlgs.find((a) => KMS_SUPPORTED_ALGS.includes(a)) ?? 'EdDSA';
   return {
     algorithm,
-    useJwk: bindingMethods?.includes('jwk') ?? false,
+    // 'cose_key' (mdoc/mDL's binding method, e.g. org.iso.18013.5.1.mDL) is a
+    // JWK-shaped key the same way 'jwk' is — Credo's own OpenId4VciHolderService
+    // treats them identically (supportsJwk includes cose_key). This legacy path
+    // didn't, so an mdoc offer through a /draft13 issuer (isLegacyEndpoint above)
+    // fell through to did:key binding, which walt.id's mdoc issuer can't extract
+    // a holder key from (its proof parser only reads an embedded jwk from the JWT
+    // header for non-cwt proofs) — 400 invalid_or_missing_proof, "No holder key
+    // could be extracted from proof". Confirmed live: captured the real proof
+    // JWT sent to walt-issuer and its header carried kid: did:key:... with no
+    // jwk field at all.
+    useJwk: (bindingMethods?.includes('jwk') || bindingMethods?.includes('cose_key')) ?? false,
   };
 }
 
@@ -218,6 +243,36 @@ export async function requestOid4VciCredentials(
       if (!compactJwt) throw new Error('El emisor no retornó una credencial en la respuesta.');
       logJwtStructure('[oid4vci]', compactJwt);
       results.push({ path: 'dc+sd-jwt', configId, displayName, compactJwt, keyId, vct });
+
+    } else if (format === 'mso_mdoc' && legacy) {
+      // ── mso_mdoc (mdoc/mDL) on legacy endpoints: manual POST ───────────────────
+      // The credential endpoint returns raw base64url IssuerSigned CBOR, not a
+      // compact JWT — must not be routed through the manual-jwt/SdJwtVcRecord path
+      // below (SdJwtVc.decode threw 'Invalid JWT as input' when it was; confirmed
+      // live). See ManualMdocResult and storeCredential.ts's handling of it.
+      const docType = config.doctype as string;
+      const requestBody: Record<string, unknown> = { format, doctype: docType, proof: {} };
+
+      const { proofJwt, keyId } = await buildProofJwt(agent, issuerUrl, cNonce, proofOptionsFromConfig(config));
+      requestBody.proof = { proof_type: 'jwt', jwt: proofJwt };
+
+      log('[oid4vci] POST', format, '(legacy) — configId:', configId);
+      const response = await fetchWithTimeout(credentialEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(requestBody),
+      });
+      if (!response.ok) {
+        throw new Error(`Error al solicitar credencial ${format} (${response.status}): ${await response.text()}`);
+      }
+      const data = await response.json() as Record<string, unknown>;
+      if (data.transaction_id) {
+        throw new Error('El emisor respondió con una credencial diferida. Inténtalo de nuevo en unos segundos.');
+      }
+      const credential = (data.credential ?? (data.credentials as string[] | undefined)?.[0]) as string | undefined;
+      if (!credential) throw new Error('El emisor no retornó una credencial en la respuesta.');
+      log('[oid4vci] mso_mdoc credential bytes (base64url):', credential.length);
+      results.push({ path: 'manual-mdoc', configId, displayName, credential, keyId, docType });
 
     } else if (legacy) {
       // ── Other formats on legacy endpoints: manual POST ─────────────────────────
