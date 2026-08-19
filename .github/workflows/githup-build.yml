@@ -48,13 +48,7 @@ jobs:
           echo "--- expo-mdoc-data-transfer instalado? ---"
           ls -la node_modules/expo-mdoc-data-transfer || echo "NOT FOUND in node_modules"
           echo "--- autolinking resolve (ios) full entry ---"
-          npx expo-modules-autolinking resolve --platform ios --json | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for m in d.get('modules', []):
-    if 'mdoc' in str(m.get('packageName', m.get('name',''))).lower():
-        print(json.dumps(m, indent=2))
-"
+          npx expo-modules-autolinking resolve --platform ios --json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(json.dumps(m, indent=2)) for m in d.get('modules', []) if 'mdoc' in str(m.get('packageName', m.get('name',''))).lower()]"
           echo "--- full Podfile ---"
           cat ios/Podfile
 
