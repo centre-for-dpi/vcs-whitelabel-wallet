@@ -1,27 +1,34 @@
 diff --git a/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec b/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec
-index 40e0668..528d32f 100644
+index 40e0668..2a70319 100644
 --- a/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec
 +++ b/node_modules/expo-mdoc-data-transfer/ios/MdocDataTransfer.podspec
-@@ -15,8 +15,18 @@ Pod::Spec.new do |s|
+@@ -15,8 +15,25 @@ Pod::Spec.new do |s|
    s.source         = { :git => "https://github.com/openwallet-foundation-labs/mdoc-data-transfer.git", :tag => "#{s.version}" }
    s.static_framework = true
  
-+  # SWIFT_INCLUDE_PATHS / FRAMEWORK_SEARCH_PATHS point at the shared per-
-+  # configuration build products dir, where Xcode writes the .swiftmodule of
-+  # every Swift package it builds for the workspace. The SPM packages this pod
-+  # imports (MdocSecurity18013, WalletStorage and their transitive
-+  # MdocDataModel18013 / SwiftCBOR / Logging) are declared on the *app* target
-+  # by plugins/withMdocSpmOnAppTarget.js instead of here — see the long comment
-+  # in that file. These search paths are what still lets this pod `import` them
-+  # at compile time even though it no longer links them.
++  # The SPM packages this pod imports (MdocSecurity18013, WalletStorage, and
++  # transitively MdocDataModel18013 / SwiftCBOR / Logging) are declared on the
++  # *app* target by plugins/withMdocSpmOnAppTarget.js rather than here — see the
++  # long comment in that file for why. The pod still has to `import` them, so it
++  # needs their .swiftmodule on its search path.
++  #
++  # That path must be ${SYMROOT}/${CONFIGURATION}${EFFECTIVE_PLATFORM_NAME},
++  # NOT ${BUILT_PRODUCTS_DIR}. For a pod built as a framework CocoaPods points
++  # BUILT_PRODUCTS_DIR at the pod's *own* subdirectory
++  # (Release-iphoneos/MdocDataTransfer), while Xcode writes SPM modules one
++  # level up in the shared Release-iphoneos root. Using BUILT_PRODUCTS_DIR here
++  # is what produced "error: no such module 'Logging'" in run 32271934393,
++  # where the compile line showed only -I .../Release-iphoneos/MdocDataTransfer.
++  # ${SYMROOT}/${CONFIGURATION}${EFFECTIVE_PLATFORM_NAME} is the same expression
++  # React Native's own spm.rb injects for this exact purpose.
    s.pod_target_xcconfig = {
      'DEFINES_MODULE' => 'YES',
-+    'SWIFT_INCLUDE_PATHS' => '$(inherited) "${BUILT_PRODUCTS_DIR}"',
-+    'FRAMEWORK_SEARCH_PATHS' => '$(inherited) "${BUILT_PRODUCTS_DIR}/PackageFrameworks"',
++    'SWIFT_INCLUDE_PATHS' => '$(inherited) "${SYMROOT}/${CONFIGURATION}${EFFECTIVE_PLATFORM_NAME}"',
++    'FRAMEWORK_SEARCH_PATHS' => '$(inherited) "${SYMROOT}/${CONFIGURATION}${EFFECTIVE_PLATFORM_NAME}/PackageFrameworks"',
    }
  
    s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
-@@ -25,18 +35,15 @@ Pod::Spec.new do |s|
+@@ -25,18 +42,15 @@ Pod::Spec.new do |s|
  
    install_modules_dependencies(s)
  
