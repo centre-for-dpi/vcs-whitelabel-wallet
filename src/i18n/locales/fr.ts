@@ -94,6 +94,16 @@ const fr: Translation = {
     optional_hint: 'Vous pouvez désélectionner les champs optionnels.',
     credential_revoked: 'Ce justificatif a été révoqué et ne peut pas être présenté.',
   },
+  presentMdl: {
+    waiting_for_reader: 'Montrez ce QR au lecteur',
+    label_requested: 'Champs demandés',
+    approve_btn: 'Approuver et envoyer',
+    presenting: 'Envoi du justificatif...',
+    success_title: 'Justificatif présenté !',
+    done_btn: 'Terminé',
+    back_btn: 'Retour',
+    error_generic: 'Erreur lors de la présentation du mDL via BLE.',
+  },
   scan: {
     manual_title: 'Coller un lien OpenID',
     manual_subtitle: "Copiez le lien de votre émetteur et collez-le ici.",

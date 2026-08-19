@@ -20,7 +20,7 @@
       "<rootDir>/src/__tests__/**/*.test.ts"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!(jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|react-navigation|@react-navigation/.*)"
+      "node_modules/(?!(jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|react-navigation|@react-navigation/.*|@credo-ts/.*|@noble/.*|@animo-id/.*)"
     ]
   },
   "dependencies": {
@@ -42,6 +42,7 @@
     "expo-linking": "~8.0.12",
     "expo-local-authentication": "~17.0.8",
     "expo-localization": "~17.0.8",
+    "expo-mdoc-data-transfer": "^0.2.0-alpha.5",
     "expo-router": "~6.0.23",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",

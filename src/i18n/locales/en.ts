@@ -92,6 +92,16 @@ const en = {
     optional_hint: 'You can deselect optional fields.',
     credential_revoked: 'This credential has been revoked and cannot be presented.',
   },
+  presentMdl: {
+    waiting_for_reader: 'Show this QR to the reader',
+    label_requested: 'Requested fields',
+    approve_btn: 'Approve and send',
+    presenting: 'Sending credential...',
+    success_title: 'Credential presented!',
+    done_btn: 'Done',
+    back_btn: 'Back',
+    error_generic: 'Error presenting the mDL over BLE.',
+  },
   scan: {
     manual_title: 'Paste OpenID link',
     manual_subtitle: 'Copy the link from your issuer and paste it here.',

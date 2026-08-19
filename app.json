@@ -73,7 +73,13 @@
         }
       ],
       "expo-web-browser",
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-mdoc-data-transfer",
+        {
+          "bluetoothAlwaysPermission": "Permite conectar por Bluetooth para presentar tu credencial mDL a un lector."
+        }
+      ]
     ],
     "extra": {
       "router": {},

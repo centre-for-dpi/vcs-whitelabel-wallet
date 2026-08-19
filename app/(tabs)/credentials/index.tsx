@@ -109,7 +109,12 @@ export default function CredentialList() {
 
   const handlePresent = (entry: CredentialEntry) => {
     setSelected(null);
-    router.push({ pathname: '/present', params: { id: entry.id, format: entry.format } });
+    // mso_mdoc presentation is BLE proximity (ISO 18013-5 device retrieval),
+    // an entirely different transport/flow from /present's OID4VP HTTP
+    // request-object flow that every other format uses — routing an mdoc
+    // through /present would 404 on `id` lookup against the wrong record type.
+    const pathname = entry.format === 'mdoc' ? '/present-mdl' : '/present';
+    router.push({ pathname, params: { id: entry.id, format: entry.format } });
   };
 
   const handleDelete = async (entry: CredentialEntry) => {

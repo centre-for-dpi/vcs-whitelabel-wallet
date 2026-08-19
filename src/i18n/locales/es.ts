@@ -94,6 +94,16 @@ const es: Translation = {
     optional_hint: 'Puedes deseleccionar campos opcionales.',
     credential_revoked: 'Esta credencial ha sido revocada y no puede ser presentada.',
   },
+  presentMdl: {
+    waiting_for_reader: 'Muestra este QR al lector',
+    label_requested: 'Campos solicitados',
+    approve_btn: 'Aprobar y enviar',
+    presenting: 'Enviando credencial...',
+    success_title: '¡Credencial presentada!',
+    done_btn: 'Listo',
+    back_btn: 'Volver',
+    error_generic: 'Error al presentar el mDL por BLE.',
+  },
   scan: {
     manual_title: 'Pegar enlace OpenID',
     manual_subtitle: 'Copia el enlace de tu emisor y pégalo aquí.',
