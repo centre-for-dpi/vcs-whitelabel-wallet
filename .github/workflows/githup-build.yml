@@ -47,12 +47,16 @@ jobs:
         run: |
           echo "--- expo-mdoc-data-transfer instalado? ---"
           ls -la node_modules/expo-mdoc-data-transfer || echo "NOT FOUND in node_modules"
-          echo "--- autolinking resolve (ios) ---"
-          npx expo-modules-autolinking resolve --platform ios --json | python3 -c "import json,sys; d=json.load(sys.stdin); print([m.get('packageName', m.get('name')) for m in d.get('modules', [])])"
-          echo "--- Podfile grep MdocDataTransfer ---"
-          grep -n -i "mdoc" ios/Podfile || echo "NOT FOUND in Podfile"
-          echo "--- Podfile.properties.json ---"
-          cat ios/Podfile.properties.json 2>&1 || echo "no properties file"
+          echo "--- autolinking resolve (ios) full entry ---"
+          npx expo-modules-autolinking resolve --platform ios --json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for m in d.get('modules', []):
+    if 'mdoc' in str(m.get('packageName', m.get('name',''))).lower():
+        print(json.dumps(m, indent=2))
+"
+          echo "--- full Podfile ---"
+          cat ios/Podfile
 
       - name: Configurar Ruby
         uses: ruby/setup-ruby@v1
@@ -70,7 +74,8 @@ jobs:
       - name: Instalar CocoaPods
         run: |
           gem install cocoapods --no-document
-          cd ios && pod install
+          cd ios && pod install --verbose 2>&1 | grep -B5 -A5 -i "mdoc\|MdocDataTransfer" || true
+          pod install
 
       # El runner tiene el SDK (iphoneos18.2) pero no los archivos de soporte de
       # plataforma requeridos por -destination generic/platform=iOS. Esta descarga
