@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { useTranslation } from 'react-i18next';
 import { useLocalSearchParams, router } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { mdocDataTransfer, useMdocDataTransferShutdownOnUnmount } from 'expo-mdoc-data-transfer';
+import { mdocDataTransfer } from 'expo-mdoc-data-transfer';
 import { MdocRecord } from '@credo-ts/core';
 import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
@@ -49,13 +49,38 @@ export default function PresentMdl() {
     record: MdocRecord;
   } | null>(null);
 
-  useMdocDataTransferShutdownOnUnmount();
+  // Deliberately not using the package's useMdocDataTransferShutdownOnUnmount:
+  // it captures `instance` as a module binding when the screen mounts, but the
+  // package reassigns that variable on every initialize/shutdown, so on a
+  // second visit the hook can hold a stale reference and skip the teardown.
+  // closeSession below reads the live value through isInitialized() instead.
+  useEffect(() => closeSession, []);
 
   useEffect(() => {
     if (agentState.status !== 'ready' || !id) return;
     void runEngagement();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentState.status, id]);
+
+  /**
+   * Tears the BLE session down so the next presentation starts clean.
+   *
+   * Always goes through isInitialized() first: mdocDataTransfer.instance()
+   * *creates* an instance when none exists, so calling it just to shut down
+   * would spin up a fresh native session and immediately kill it. Doing that
+   * left the native side and the JS side disagreeing about whether a session
+   * existed, which is what produced "not initialized" on the second QR —
+   * the first presentation worked, every one after it failed until the app
+   * was restarted.
+   */
+  const closeSession = () => {
+    try {
+      if (mdocDataTransfer.isInitialized()) mdocDataTransfer.instance().shutdown();
+    } catch (e) {
+      // Best-effort: a failed teardown must not mask the error that led here.
+      console.error('[presentMdl] shutdown failed:', e);
+    }
+  };
 
   const runEngagement = async () => {
     if (agentState.status !== 'ready') return;
@@ -80,6 +105,9 @@ export default function PresentMdl() {
       setStep('confirm');
     } catch (e: unknown) {
       console.error('[presentMdl] engagement/request failed:', e);
+      // Same reasoning as the approve path: leave no half-open BLE session
+      // behind, or the next presentation starts against stale native state.
+      closeSession();
       setErrorMsg(e instanceof Error ? e.message : t('presentMdl.error_generic'));
       setStep('error');
     }
@@ -122,15 +150,24 @@ export default function PresentMdl() {
       setStep('done');
     } catch (e: unknown) {
       console.error('[presentMdl] sign/send failed:', e);
+      // Close the BLE session before showing the error. Without this the
+      // reader sits waiting for a DeviceResponse that will never arrive and
+      // eventually times out with no explanation. Dropping the connection at
+      // least tells it the session is over immediately.
+      //
+      // Ideally this would send a proper ISO 18013-5 session-termination
+      // status instead of just disconnecting, but the native module only
+      // exposes shutdown() — there is no API to send an error status
+      // (MdocDataTransferModule.swift exposes initialize/startQrEngagement/
+      // sendDeviceResponse/shutdown/enableNfc, nothing else).
+      closeSession();
       setErrorMsg(e instanceof Error ? e.message : t('presentMdl.error_generic'));
       setStep('error');
     }
   };
 
   const handleReject = () => {
-    try {
-      mdocDataTransfer.instance().shutdown();
-    } catch { /* best-effort */ }
+    closeSession();
     router.back();
   };
 
