@@ -1,33 +1,60 @@
 # iOS: mDL (expo-mdoc-data-transfer) and Swift Package linking
 
-Status: **unresolved for device builds.** Not an Xcode-version problem, and
-not fixed by upgrading the toolchain.
+Status: **fixed.** Device build green as of run 32306249398 (commit
+`84b18af`): `Compilar Aplicación` ✓, `.ipa` packaged and uploaded
+(`app-ios-release`, 19.6 MB), zero duplicate symbols.
 
-Two hypotheses were tested and ruled out:
+## The fix
+
+`plugins/withMdocArchiveDedup.js` adds a build phase on the `MdocDataTransfer`
+pod target that rebuilds its static archive with each member kept once, after
+the pod compiles and before the app links:
+
+```
+note: 56 members, 33 unique; rebuilding archive without duplicates.
+note: archive rebuilt with 33 members.
+```
+
+That is the 23 duplicated objects removed. Safe because the duplicates are
+byte-identical — the same object files handed to `libtool` twice — so
+collapsing them loses nothing.
+
+Every earlier attempt tried to change *how things link* (build types,
+frameworks, target ownership, toolchain). This one leaves linking alone and
+repairs the malformed input instead, which is why it works where those
+didn't.
+
+Two things worth knowing if this needs revisiting:
+
+- **No linker flag can rescue this.** `-allow_duplicate_symbols` does not
+  exist; `-no_warn_duplicate_libraries` covers duplicate *libraries*, not
+  symbols; `-duplicate_symbols` only escalates warnings to errors, never the
+  reverse; `-multiply_defined` is documented as no longer supported.
+- **`-ObjC` comes from CocoaPods, not React Native.** It is absent from
+  `react-native/scripts`, `expo/` and `expo-modules-core`. So the alternative
+  fix — drop `-ObjC` and `-force_load` every other archive instead — is
+  available, and is the fallback if the archive rebuild ever stops working.
+  It was not chosen because a wrong `-force_load` path fails silently as
+  missing selectors at runtime, whereas this fails at build time.
+
+## Two hypotheses that were tested and ruled out
+
+Recorded so neither gets retried:
 
 - **Newer Xcode.** The workflow was pinned to 16.2; the `macos-15` runner
   also offers 16.3, 16.4 and several 26.x. Moving to **16.4 changed
-  nothing**: run 32300947471 failed with 16,088 duplicate symbols (vs 15,628
-  on 16.2), same mechanism — `-ObjC` present, and the pod's `libtool` still
-  fed the same 23 SPM objects twice.
-- **EAS Build.** The same commit *does* build cleanly on EAS
-  (`600b58de-e5b3-4f04-bf04-a86e5409f7ff`, 7m21s, artifact produced). That
-  looked like toolchain evidence, but the distinguishing variable was
-  **simulator vs device**, not Xcode: that EAS run used the unsigned
-  *simulator* profile, while this workflow links `Release-iphoneos` for a
-  real device. Simulator and device links differ in architecture and in how
-  `-ObjC` pulls archive members, which is exactly the documented trigger.
-
-So the bug reproduces on device builds regardless of Xcode version, and a
-passing simulator build is not evidence that it is fixed. Any future claim
-that it is resolved needs a **device** build to back it up.
+  nothing**: run 32300947471 still failed with 16,088 duplicate symbols (vs
+  15,628 on 16.2), same mechanism. The workflow stays on 16.4, but that is
+  not what fixed it.
+- **EAS Build.** The same commit built cleanly on EAS
+  (`600b58de-e5b3-4f04-bf04-a86e5409f7ff`). That looked like toolchain
+  evidence, but the distinguishing variable was **simulator vs device**: that
+  run used the unsigned *simulator* profile, while this workflow links
+  `Release-iphoneos`. A passing simulator build was never evidence the device
+  build would pass.
 
 Everything below documents the mechanism and the seven approaches tried
-against it. It remains accurate.
-
-Last verified (failing): run 32300947471 (commit `5014783`), Xcode 16.4,
-RN 0.81.5, expo-mdoc-data-transfer 0.2.0-alpha.5. Previously: run
-32292108405 (`ff5340a`) on Xcode 16.2.
+before the archive rebuild. It remains accurate.
 
 ## Symptom
 
@@ -91,6 +118,7 @@ The referenced PR (facebook/react-native#44627) offers no workaround other than
 | 5 | Move SPM to the app target | Fixed the duplicates but broke module visibility, then build ordering. Both were solvable, but the app-target copy then collided with the pod's |
 | 6 | `ios.buildStatic` (pod → static library) | Eliminated the *framework* self-duplication (intra-archive collisions dropped ~7,800 → 2) but not the `-filelist`/explicit double-feed |
 | 7 | Unlink SPM products from the pod's Frameworks phase | No-op: the products were never in that phase. The duplicate arrives through Xcode's generated `libtool` arguments, which no build setting controls |
+| 8 | **Rebuild the archive without duplicate members** | **Works.** `plugins/withMdocArchiveDedup.js`. Took three tries to get the script right — `xargs -a` is GNU-only (macOS ships BSD xargs), and `ar t` lists `__.SYMDEF`, which `libtool` rejects as input |
 
 ## Where it stands
 

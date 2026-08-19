@@ -14,12 +14,11 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      # 16.4 es el default del runner macos-15. Antes se fijaba 16.2; se probó
-      # subir de versión para ver si evitaba el bug de duplicate symbols de
-      # docs/ios-mdl-spm-linking.md y NO lo evita (run 32300947471: 16,088
-      # duplicados en 16.4 vs 15,628 en 16.2, mismo mecanismo). Se deja 16.4 de
-      # todas formas por estar soportada y ser el default, pero no confundir
-      # esto con un arreglo: el bug sigue abierto para builds de dispositivo.
+      # 16.4 es el default del runner macos-15. Antes se fijaba 16.2; subir de
+      # versión NO fue lo que arregló el bug de duplicate symbols (run
+      # 32300947471 falló igual en 16.4). Lo que lo arregla es
+      # plugins/withMdocArchiveDedup.js — ver docs/ios-mdl-spm-linking.md. Se
+      # deja 16.4 por ser el default y estar soportada.
       - name: Seleccionar Xcode 16.4
         run: |
           sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
