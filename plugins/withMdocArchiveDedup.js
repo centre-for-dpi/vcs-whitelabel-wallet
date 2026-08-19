@@ -49,8 +49,13 @@ const RUBY_SNIPPET = `
         echo "note: $LIB not found; nothing to dedup."
         exit 0
       fi
-      TOTAL=$(xcrun ar t "$LIB" | wc -l | tr -d ' ')
-      UNIQUE=$(xcrun ar t "$LIB" | sort -u | wc -l | tr -d ' ')
+      # __.SYMDEF is the archive's own symbol index, not an object file —
+      # ar lists it but libtool rejects it as input ("not an object file
+      # (not allowed in a library)"). libtool regenerates it for the new
+      # archive, so filter it out everywhere members are counted or fed back.
+      members() { xcrun ar t "$1" | grep -v '^__\.SYMDEF'; }
+      TOTAL=$(members "$LIB" | wc -l | tr -d ' ')
+      UNIQUE=$(members "$LIB" | sort -u | wc -l | tr -d ' ')
       if [ "$TOTAL" -eq "$UNIQUE" ]; then
         echo "note: $TOTAL members, no duplicates; leaving archive untouched."
         exit 0
@@ -61,11 +66,11 @@ const RUBY_SNIPPET = `
       cd "$WORK"
       # ar x collapses same-named members, which is exactly the dedup we want.
       xcrun ar x "$LIB"
-      xcrun ar t "$LIB" | sort -u > members.txt
+      members "$LIB" | sort -u > members.txt
       # BSD xargs (macOS) has no -a; feed the list on stdin instead.
       xargs xcrun libtool -static -o "$LIB.dedup" < members.txt
       mv "$LIB.dedup" "$LIB"
-      echo "note: archive rebuilt with $(xcrun ar t "$LIB" | wc -l | tr -d ' ') members."
+      echo "note: archive rebuilt with $(members "$LIB" | wc -l | tr -d ' ') members."
     DEDUP_SH
   end
   # --- end ${POD_NAME} archive dedup ---
