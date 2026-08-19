@@ -42,6 +42,18 @@ jobs:
       - name: Generar carpeta iOS nativa (Expo Prebuild)
         run: npx expo prebuild --platform ios --clean --no-install
 
+      # TEMP DEBUG — remove once the MdocDataTransfer autolinking gap is diagnosed.
+      - name: "[DEBUG] Inspeccionar autolinking y Podfile generado"
+        run: |
+          echo "--- expo-mdoc-data-transfer instalado? ---"
+          ls -la node_modules/expo-mdoc-data-transfer || echo "NOT FOUND in node_modules"
+          echo "--- autolinking resolve (ios) ---"
+          npx expo-modules-autolinking resolve --platform ios --json | python3 -c "import json,sys; d=json.load(sys.stdin); print([m.get('packageName', m.get('name')) for m in d.get('modules', [])])"
+          echo "--- Podfile grep MdocDataTransfer ---"
+          grep -n -i "mdoc" ios/Podfile || echo "NOT FOUND in Podfile"
+          echo "--- Podfile.properties.json ---"
+          cat ios/Podfile.properties.json 2>&1 || echo "no properties file"
+
       - name: Configurar Ruby
         uses: ruby/setup-ruby@v1
         with:
