@@ -79,6 +79,14 @@
         {
           "bluetoothAlwaysPermission": "Permite conectar por Bluetooth para presentar tu credencial mDL a un lector."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "dynamic"
+          }
+        }
       ]
     ],
     "extra": {

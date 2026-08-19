@@ -34,6 +34,7 @@
     "crypto-js": "^4.2.0",
     "expo": "~54.0.31",
     "expo-auth-session": "~7.0.11",
+    "expo-build-properties": "^57.0.12",
     "expo-camera": "~17.0.10",
     "expo-crypto": "~15.0.8",
     "expo-dev-client": "~6.0.21",

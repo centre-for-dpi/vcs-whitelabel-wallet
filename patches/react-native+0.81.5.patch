@@ -1,0 +1,58 @@
+diff --git a/node_modules/react-native/scripts/cocoapods/spm.rb b/node_modules/react-native/scripts/cocoapods/spm.rb
+index 0b13207..fc9cf6c 100644
+--- a/node_modules/react-native/scripts/cocoapods/spm.rb
++++ b/node_modules/react-native/scripts/cocoapods/spm.rb
+@@ -3,6 +3,8 @@
+ # This source code is licensed under the MIT license found in the
+ # LICENSE file in the root directory of this source tree.
+ 
++require 'securerandom'
++
+ class SPMManager
+   def initialize()
+      @dependencies_by_pod = {}
+@@ -65,12 +67,34 @@ class SPMManager
+     project.root_object.package_references.delete_if { |pkg| (pkg.class == Xcodeproj::Project::Object::XCRemoteSwiftPackageReference) }
+   end
+ 
++  # Patch (upstreamed in facebook/react-native PRs #57576/#57602, not yet in
++  # the 0.81.5 this project pins): xcodeproj's project.new(klass) generates a
++  # UUID from a counter prefixed by SHA256("Pods.xcodeproj") that resets
++  # between project generation and this post_install hook — its first call
++  # here can collide with a UUID the PBXProject root object already owns,
++  # silently corrupting the in-memory project. With two spm_dependency calls
++  # in the same podspec (expo-mdoc-data-transfer declares two: the
++  # eudi-lib-ios-iso18013-security and eudi-lib-ios-wallet-storage SPM
++  # packages), the corruption from the first call makes project.targets.find
++  # return nil on the second, crashing with "undefined method
++  # 'package_product_dependencies' for nil:NilClass" at the line below. Fixed
++  # here the same way upstream did: mint an explicit UUID and re-roll it on
++  # the rare collision with project.objects_by_uuid, instead of trusting
++  # xcodeproj's internal counter not to repeat one post_install already used.
++  def new_object_with_explicit_uuid(project, klass)
++    obj = project.new(klass)
++    while project.objects_by_uuid.key?(obj.uuid) && project.objects_by_uuid[obj.uuid] != obj
++      obj.uuid = SecureRandom.hex(12).upcase
++    end
++    obj
++  end
++
+   def add_spm_to_target(project, target, url, requirement, products)
+     pkg_class = Xcodeproj::Project::Object::XCRemoteSwiftPackageReference
+     ref_class = Xcodeproj::Project::Object::XCSwiftPackageProductDependency
+     pkg = project.root_object.package_references.find { |p| p.class == pkg_class && p.repositoryURL == url }
+     if !pkg
+-      pkg = project.new(pkg_class)
++      pkg = new_object_with_explicit_uuid(project, pkg_class)
+       pkg.repositoryURL = url
+       pkg.requirement = requirement
+       log(" Adding package to workspace: #{pkg.inspect}")
+@@ -83,7 +107,7 @@ class SPMManager
+       next if ref
+ 
+       log(" Adding product dependency #{product_name} to #{target.name}")
+-      ref = project.new(ref_class)
++      ref = new_object_with_explicit_uuid(project, ref_class)
+       ref.package = pkg
+       ref.product_name = product_name
+       target.package_product_dependencies << ref
