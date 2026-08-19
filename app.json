@@ -89,7 +89,8 @@
           }
         }
       ],
-      "./plugins/withMdocSpmOnAppTarget"
+      "./plugins/withMdocSpmOnAppTarget",
+      "./plugins/withMdocSpmBuildOrder"
     ],
     "extra": {
       "router": {},
