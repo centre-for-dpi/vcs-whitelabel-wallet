@@ -91,7 +91,8 @@
             "deploymentTarget": "16.4"
           }
         }
-      ]
+      ],
+      "./plugins/withMdocSpmNoDoubleLink"
     ],
     "extra": {
       "router": {},
