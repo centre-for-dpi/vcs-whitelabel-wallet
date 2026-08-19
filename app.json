@@ -84,9 +84,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "dynamic",
-            "deploymentTarget": "16.4",
-            "forceStaticLinking": ["react-native-get-random-values", "RNFS"]
+            "useFrameworks": "static",
+            "deploymentTarget": "16.4"
           }
         }
       ]
