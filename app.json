@@ -77,7 +77,10 @@
       [
         "expo-mdoc-data-transfer",
         {
-          "bluetoothAlwaysPermission": "Permite conectar por Bluetooth para presentar tu credencial mDL a un lector."
+          "bluetoothAlwaysPermission": "Permite conectar por Bluetooth para presentar tu credencial mDL a un lector.",
+          "ios": {
+            "buildStatic": ["MdocDataTransfer"]
+          }
         }
       ],
       [
