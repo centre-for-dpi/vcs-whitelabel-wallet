@@ -21,7 +21,7 @@ export const branding = {
   textColor: '#2c2c77',              // CDPI dark navy for titles and header text
   // Set to false to allow credential offers from HTTP (non-HTTPS) issuers.
   // When true, Credo-TS enforces HTTPS and rejects HTTP issuer URLs.
-  requireHttps: false,
+  requireHttps: true,
 } as const;
 
 /**
