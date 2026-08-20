@@ -37,23 +37,41 @@ export type WalletAgent = Agent;
 // (X509ModuleConfig.getTrustedCertificatesForVerification) is the intended
 // longer-term replacement once there's more than one mdoc issuer to trust.
 //
-// This is the walt.id issuer2 sample profile's "defaultIssuerX5chain" cert
-// (waltid/issuer-api2 config/issuer2-profiles.conf) — its public key is the
-// one defaultIssuerKey actually signs mdocs with, confirmed by decoding a
-// live-issued credential's COSE_Sign1 x5chain header. Despite the Issuer
-// field reading "CN=MDOC ROOT CA", this is walt.id's own demo cert, not a
-// real external CA; no separate root is published, so this cert IS the trust
-// anchor. Subject: CN=walt.is,OU=walt.id,O=walt.id,L=Vienna,ST=Vienna,C=AT.
+// walt.id's own issuer2 sample "defaultIssuerX5chain" cert turned out to be
+// unusable: its Issuer DN is only "CN=MDOC ROOT CA", no countryName. Credo's
+// mdoc verifier requires C on the certificate's *Issuer* field specifically
+// (Mdoc.getIssuingCountry -> X509Certificate.getIssuerNameField reads
+// x509Certificate.issuerName, i.e. the X.509 Issuer, not the Subject — the
+// method name is misleading), so every credential signed by that cert fails
+// with "Country name (C) must be present in the issuer certificate's subject
+// distinguished name" (the check's own message is also misleading — it's
+// really checking the Issuer field of the chain). Reported nowhere upstream;
+// confirmed by decoding a live-issued credential's COSE_Sign1 x5chain and
+// inspecting the cert directly.
+//
+// Replaced with a purpose-built ISO 18013-5 test PKI instead of patching
+// around it: a self-signed IACA root (C=DO, CA:TRUE) and a Document Signer
+// cert it issues (EKU 1.0.18013.5.1.2, the mDL DS OID X509Certificate.ts
+// already recognizes as X509ExtendedKeyUsage.MdlDs), both P-256, both
+// carrying C in their DN. issuer2-profiles.conf's defaultIssuerKey/
+// defaultIssuerX5chain on cdpi-vps were swapped to the DS key/cert so mdocs
+// are now signed by this chain; the wallet trusts the IACA root here, one
+// level up, matching how a real chain (DS presented, root trusted
+// out-of-band) is verified. Root subject:
+// CN=CDPI mDL Test IACA,OU=mDL Test,O=CDPI,C=DO.
 const MDOC_TRUSTED_CERTIFICATES = [
   `-----BEGIN CERTIFICATE-----
-MIIBeTCCAR8CFHrWgrGl5KdefSvRQhR+aoqdf48+MAoGCCqGSM49BAMCMBcxFTAT
-BgNVBAMMDE1ET0MgUk9PVCBDQTAgFw0yNTA1MTQxNDA4MDlaGA8yMDc1MDUwMjE0
-MDgwOVowZTELMAkGA1UEBhMCQVQxDzANBgNVBAgMBlZpZW5uYTEPMA0GA1UEBwwG
-Vmllbm5hMRAwDgYDVQQKDAd3YWx0LmlkMRAwDgYDVQQLDAd3YWx0LmlkMRAwDgYD
-VQQDDAd3YWx0LmlzMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEG0RINBiF+oQU
-D3d5DGnegQuXenI29JDaMGoMvioKRBN53d4UazakS2unu8BnsEtxutS2kqRhYBPY
-k9RAriU3gTAKBggqhkjOPQQDAgNIADBFAiAOMwM7hH7q9Di+mT6qCi4LvB+kH8Ox
-MheIrZ2eRPxtDQIhALHzTxwvN8Udt0Z2Cpo8JBihqacfeXkIxVAO8XkxmXhB
+MIIB/zCCAaagAwIBAgIUKTOoXxp25Z983OGn634fdplzVjYwCgYIKoZIzj0EAwIw
+TDELMAkGA1UEBhMCRE8xDTALBgNVBAoMBENEUEkxETAPBgNVBAsMCG1ETCBUZXN0
+MRswGQYDVQQDDBJDRFBJIG1ETCBUZXN0IElBQ0EwHhcNMjYwODIwMDI0ODUzWhcN
+NDEwODE2MDI0ODUzWjBMMQswCQYDVQQGEwJETzENMAsGA1UECgwEQ0RQSTERMA8G
+A1UECwwIbURMIFRlc3QxGzAZBgNVBAMMEkNEUEkgbURMIFRlc3QgSUFDQTBZMBMG
+ByqGSM49AgEGCCqGSM49AwEHA0IABCTcslEgOrzjLtPBoWBJbaDZiyOo9ftMpzjE
++QM8zM4eykUzqldkX2hwHucuI0YS79OcTleKOU+kr6VqyGE6TeWjZjBkMB8GA1Ud
+IwQYMBaAFP8GEePHxctw433/sGUcgJEabn+7MBIGA1UdEwEB/wQIMAYBAf8CAQAw
+DgYDVR0PAQH/BAQDAgEGMB0GA1UdDgQWBBT/BhHjx8XLcON9/7BlHICRGm5/uzAK
+BggqhkjOPQQDAgNHADBEAiA06c/iRQg8MrWeOjP5+FV9eVtPRrKphOB/zMOy8UkL
+HQIgZrMypmgVbQx1O5g0m25JuYgmBI+yIKTX4QEhnccXXnY=
 -----END CERTIFICATE-----`,
 ];
 
