@@ -50,28 +50,37 @@ export type WalletAgent = Agent;
 // inspecting the cert directly.
 //
 // Replaced with a purpose-built ISO 18013-5 test PKI instead of patching
-// around it: a self-signed IACA root (C=DO, CA:TRUE) and a Document Signer
-// cert it issues (EKU 1.0.18013.5.1.2, the mDL DS OID X509Certificate.ts
-// already recognizes as X509ExtendedKeyUsage.MdlDs), both P-256, both
-// carrying C in their DN. issuer2-profiles.conf's defaultIssuerKey/
-// defaultIssuerX5chain on cdpi-vps were swapped to the DS key/cert so mdocs
-// are now signed by this chain; the wallet trusts the IACA root here, one
-// level up, matching how a real chain (DS presented, root trusted
-// out-of-band) is verified. Root subject:
-// CN=CDPI mDL Test IACA,OU=mDL Test,O=CDPI,C=DO.
+// around it: a self-signed IACA root (CA:TRUE) and a Document Signer cert
+// it issues (EKU 1.0.18013.5.1.2, the mDL DS OID X509Certificate.ts already
+// recognizes as X509ExtendedKeyUsage.MdlDs), both P-256, both carrying C in
+// their DN. issuer2-profiles.conf's defaultIssuerKey/defaultIssuerX5chain on
+// cdpi-vps were swapped to the DS key/cert so mdocs are now signed by this
+// chain; the wallet trusts the IACA root here, one level up, matching how a
+// real chain (DS presented, root trusted out-of-band) is verified.
+//
+// Country is AT, not CDPI's own DO, because it must equal issuer2-profiles.
+// conf's isoMdl sample data's issuing_country/nationality (Austria) —
+// @animo-id/mdoc's verifier separately checks that the mdoc's
+// issuing_country *data element* equals the countryName in the signing
+// cert's *Subject* DN (distinct from the Issuer-DN check above; error was
+// "The 'issuing_country' (AT) must match the 'countryName' (DO) in the
+// subject field within the issuer certificate" against a first C=DO
+// attempt). Changing the sample profile's country data instead of the cert
+// remains an option later; matching the cert to the data was the smaller
+// change. Root subject: CN=CDPI mDL Test IACA AT,OU=mDL Test,O=CDPI,C=AT.
 const MDOC_TRUSTED_CERTIFICATES = [
   `-----BEGIN CERTIFICATE-----
-MIIB/zCCAaagAwIBAgIUKTOoXxp25Z983OGn634fdplzVjYwCgYIKoZIzj0EAwIw
-TDELMAkGA1UEBhMCRE8xDTALBgNVBAoMBENEUEkxETAPBgNVBAsMCG1ETCBUZXN0
-MRswGQYDVQQDDBJDRFBJIG1ETCBUZXN0IElBQ0EwHhcNMjYwODIwMDI0ODUzWhcN
-NDEwODE2MDI0ODUzWjBMMQswCQYDVQQGEwJETzENMAsGA1UECgwEQ0RQSTERMA8G
-A1UECwwIbURMIFRlc3QxGzAZBgNVBAMMEkNEUEkgbURMIFRlc3QgSUFDQTBZMBMG
-ByqGSM49AgEGCCqGSM49AwEHA0IABCTcslEgOrzjLtPBoWBJbaDZiyOo9ftMpzjE
-+QM8zM4eykUzqldkX2hwHucuI0YS79OcTleKOU+kr6VqyGE6TeWjZjBkMB8GA1Ud
-IwQYMBaAFP8GEePHxctw433/sGUcgJEabn+7MBIGA1UdEwEB/wQIMAYBAf8CAQAw
-DgYDVR0PAQH/BAQDAgEGMB0GA1UdDgQWBBT/BhHjx8XLcON9/7BlHICRGm5/uzAK
-BggqhkjOPQQDAgNHADBEAiA06c/iRQg8MrWeOjP5+FV9eVtPRrKphOB/zMOy8UkL
-HQIgZrMypmgVbQx1O5g0m25JuYgmBI+yIKTX4QEhnccXXnY=
+MIICBTCCAaugAwIBAgITF9LDzhLeukwO/L+bDMfS5M20kzAKBggqhkjOPQQDAjBP
+MQswCQYDVQQGEwJBVDENMAsGA1UECgwEQ0RQSTERMA8GA1UECwwIbURMIFRlc3Qx
+HjAcBgNVBAMMFUNEUEkgbURMIFRlc3QgSUFDQSBBVDAeFw0yNjA4MjAwMzExNTVa
+Fw00MTA4MTYwMzExNTVaME8xCzAJBgNVBAYTAkFUMQ0wCwYDVQQKDARDRFBJMREw
+DwYDVQQLDAhtREwgVGVzdDEeMBwGA1UEAwwVQ0RQSSBtREwgVGVzdCBJQUNBIEFU
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9dL/wqtxBt1Iuu1Hah4F/lWj3/4g
+fEXLU5453VXF1F91t9+mZbDFo2vIo1+GnehtAAOoj1wMAdEyxg1pwtkx1aNmMGQw
+HwYDVR0jBBgwFoAUr4egBHwowZqB8qLaeG/EdUCpBocwEgYDVR0TAQH/BAgwBgEB
+/wIBADAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYEFK+HoAR8KMGagfKi2nhvxHVA
+qQaHMAoGCCqGSM49BAMCA0gAMEUCIDkU3Ekv6fH8ha5BsFH7Ud9NzaSjaFOtHF/l
+i1M9lcruAiEAreksYOd8LJ4+65V/wSVGV0NffrGOUrqEWxzvW0I9hWk=
 -----END CERTIFICATE-----`,
 ];
 
