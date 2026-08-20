@@ -23,8 +23,8 @@
     },
     "android": {
       "package": "org.cdpi.wallet",
-      "compileSdkVersion": 32,
-      "targetSdkVersion": 32,
+      "compileSdkVersion": 35,
+      "targetSdkVersion": 35,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -58,6 +58,7 @@
     },
     "plugins": [
       "./plugins/withCleartextTraffic",
+      "./plugins/withNdkVersion",
       "expo-router",
       "expo-dev-client",
       "expo-secure-store",
@@ -92,7 +93,8 @@
             "deploymentTarget": "16.4"
           },
           "android": {
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "kotlinVersion": "2.0.21"
           }
         }
       ],

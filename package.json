@@ -1,7 +1,7 @@
 {
   "name": "cdpi-wallet",
   "version": "0.1.0",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -24,6 +24,7 @@
     ]
   },
   "dependencies": {
+    "@animo-id/expo-digital-credentials-api": "^0.4.0",
     "@credo-ts/askar": "0.6.3",
     "@credo-ts/core": "0.6.3",
     "@credo-ts/openid4vc": "0.6.3",

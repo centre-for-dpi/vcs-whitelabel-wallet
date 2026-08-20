@@ -1,3 +1,29 @@
+diff --git a/node_modules/react-native/ReactAndroid/cmake-utils/ReactNative-application.cmake b/node_modules/react-native/ReactAndroid/cmake-utils/ReactNative-application.cmake
+index baa0fef..832e7e3 100644
+--- a/node_modules/react-native/ReactAndroid/cmake-utils/ReactNative-application.cmake
++++ b/node_modules/react-native/ReactAndroid/cmake-utils/ReactNative-application.cmake
+@@ -32,11 +32,16 @@ if(CCACHE_FOUND)
+ endif(CCACHE_FOUND)
+ 
+ # If the user toolchain supports IPO, we enable it for the app build
+-include(CheckIPOSupported)
+-check_ipo_supported(RESULT IPO_SUPPORT)
+-if (IPO_SUPPORT)
+-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+-endif()
++# PATCH (cdpi-wallet): disabled — with NDK r27 + CMake >=3.31 on Windows,
++# check_ipo_supported() reports true and LTO gets enabled even for Debug
++# builds, which then fails the link step of every autolinked C++ codegen
++# library (safeareacontext, rnsvg, ...) with "undefined symbol" errors for
++# plain libc++ runtime symbols under LTO bitcode. See patches/react-native+*.patch.
++# include(CheckIPOSupported)
++# check_ipo_supported(RESULT IPO_SUPPORT)
++# if (IPO_SUPPORT)
++#   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
++# endif()
+ 
+ set(BUILD_DIR ${PROJECT_BUILD_DIR})
+ file(TO_CMAKE_PATH "${BUILD_DIR}" BUILD_DIR)
 diff --git a/node_modules/react-native/scripts/cocoapods/spm.rb b/node_modules/react-native/scripts/cocoapods/spm.rb
 index 0b13207..fc9cf6c 100644
 --- a/node_modules/react-native/scripts/cocoapods/spm.rb

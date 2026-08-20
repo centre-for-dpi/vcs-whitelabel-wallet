@@ -104,6 +104,13 @@ const fr: Translation = {
     back_btn: 'Retour',
     error_generic: 'Erreur lors de la présentation du mDL via BLE.',
   },
+  digitalCredentials: {
+    title: 'Demande de justificatif',
+    subtitle: 'Cette application ou ce site demande les données suivantes :',
+    approve_btn: 'Approuver et envoyer',
+    deny_btn: 'Refuser',
+    error_generic: 'Impossible de traiter la demande.',
+  },
   scan: {
     manual_title: 'Coller un lien OpenID',
     manual_subtitle: "Copiez le lien de votre émetteur et collez-le ici.",

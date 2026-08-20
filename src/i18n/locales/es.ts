@@ -104,6 +104,13 @@ const es: Translation = {
     back_btn: 'Volver',
     error_generic: 'Error al presentar el mDL por BLE.',
   },
+  digitalCredentials: {
+    title: 'Solicitud de credencial',
+    subtitle: 'Esta app o sitio web solicita los siguientes datos:',
+    approve_btn: 'Aprobar y enviar',
+    deny_btn: 'Rechazar',
+    error_generic: 'No se pudo procesar la solicitud.',
+  },
   scan: {
     manual_title: 'Pegar enlace OpenID',
     manual_subtitle: 'Copia el enlace de tu emisor y pégalo aquí.',

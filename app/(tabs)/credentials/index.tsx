@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Dimensions,
   LayoutChangeEvent,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -33,6 +34,7 @@ import {
   fromW3cV2Record,
 } from '../../../src/utils/credential';
 import { OidcUser, getUserDisplayName } from '../../../src/utils/storage';
+import { registerMdlDigitalCredentials } from '../../../src/agent/mdl/registerDigitalCredentials';
 
 // Best-effort initial wallet width (corrected precisely by onLayout).
 const INITIAL_WALLET_WIDTH = Dimensions.get('window').width - walletDesign.pocketScreenGap * 2;
@@ -93,6 +95,19 @@ export default function CredentialList() {
       for (const r of mdocRecords)   { try { all.push(fromMdocRecord(r));   } catch (e) { console.error('[cred] mdoc:', e);  } }
       all.sort((a, b) => new Date(b.issuanceDate).getTime() - new Date(a.issuanceDate).getTime());
       setEntries(all);
+
+      // C.7.3b: keep the Android system credential picker's registry in sync
+      // with whatever mdocs this wallet actually holds, on every load —
+      // registerCredentials' own contract is "call again whenever the set of
+      // credentials changes," and this is the one place that already knows
+      // the current mdocRecords. Android-only (Platform check happens inside
+      // the package itself; harmless no-op on iOS) and never allowed to break
+      // the credential list UI if it fails — registration is best-effort.
+      if (Platform.OS === 'android') {
+        registerMdlDigitalCredentials(mdocRecords).catch((e) =>
+          console.error('[cred] digital credentials registration:', e)
+        );
+      }
     } catch (e) {
       console.error('[cred] load:', e);
       setEntries([]);

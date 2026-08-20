@@ -3,10 +3,11 @@ import 'react-native-get-random-values';
 import '../src/i18n'; // initialize i18next before any screen renders
 import { Buffer } from 'buffer';
 if (typeof global.Buffer === 'undefined') global.Buffer = Buffer;
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
+import { isGetCredentialActivity } from '@animo-id/expo-digital-credentials-api';
 import { AgentProvider } from '../src/agent/context';
 import { UserProvider } from '../src/auth/UserContext';
 import { initLanguagePreference } from '../src/i18n';
@@ -14,9 +15,20 @@ import { initLanguagePreference } from '../src/i18n';
 export default function RootLayout() {
   const { t } = useTranslation();
 
+  // Expo Router auto-boots this root layout even when Android launched the
+  // GET_CREDENTIAL activity (index.js's registerGetCredentialComponent
+  // handles that intent separately) — without this guard the full app would
+  // mount invisibly underneath the credential-picker overlay. Per the
+  // package README's "Note on Expo Router" section: must only be called
+  // once this component is already mounted, not at module scope, or app
+  // loading can get stuck.
+  const isDcApiActivity = useMemo(() => isGetCredentialActivity(), []);
+
   useEffect(() => {
     initLanguagePreference();
   }, []);
+
+  if (isDcApiActivity) return null;
 
   return (
     <UserProvider>

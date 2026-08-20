@@ -102,6 +102,13 @@ const en = {
     back_btn: 'Back',
     error_generic: 'Error presenting the mDL over BLE.',
   },
+  digitalCredentials: {
+    title: 'Credential request',
+    subtitle: 'This app or website is requesting the following data:',
+    approve_btn: 'Approve and send',
+    deny_btn: 'Deny',
+    error_generic: 'Could not process the request.',
+  },
   scan: {
     manual_title: 'Paste OpenID link',
     manual_subtitle: 'Copy the link from your issuer and paste it here.',
