@@ -49,13 +49,9 @@ export default function PresentMdl() {
     record: MdocRecord;
   } | null>(null);
 
-  // Deliberately not using the package's useMdocDataTransferShutdownOnUnmount:
-  // it captures `instance` as a module binding when the screen mounts, but the
-  // package reassigns that variable on every initialize/shutdown, so on a
-  // second visit the hook can hold a stale reference and skip the teardown.
-  // closeSession below reads the live value through isInitialized() instead.
-  useEffect(() => closeSession, []);
-
+  // No teardown on unmount, deliberately — see closeSession for why calling
+  // shutdown() is what breaks the *next* presentation rather than cleaning up
+  // for it.
   useEffect(() => {
     if (agentState.status !== 'ready' || !id) return;
     void runEngagement();
@@ -63,15 +59,27 @@ export default function PresentMdl() {
   }, [agentState.status, id]);
 
   /**
-   * Tears the BLE session down so the next presentation starts clean.
+   * Ends the BLE session — but only when the native side can recover from it.
    *
-   * Always goes through isInitialized() first: mdocDataTransfer.instance()
-   * *creates* an instance when none exists, so calling it just to shut down
-   * would spin up a fresh native session and immediately kill it. Doing that
-   * left the native side and the JS side disagreeing about whether a session
-   * existed, which is what produced "not initialized" on the second QR —
-   * the first presentation worked, every one after it failed until the app
-   * was restarted.
+   * The native module builds exactly one MdocGattServer, at module-registration
+   * time (`let bleServerTransfer = MdocGattServer(self)` in
+   * MdocDataTransferModule.swift), and never rebuilds it. shutdown() forwards
+   * to that server's stop(), and stop() only restores a usable status when it
+   * was already `.error`:
+   *
+   *     if status == .error && initSuccess { status = .initializing }
+   *
+   * performDeviceEngagement then refuses to start unless the status is
+   * `.initialized`, `.disconnected` or `.responseSent`, throwing the literal
+   * "Not initialized!" otherwise. So calling shutdown() after a normal session
+   * leaves the one and only server in a state no later QR can start from, and
+   * the app has to be killed to present again.
+   *
+   * A completed presentation already ends at `.responseSent`, and a reader
+   * that walks away leaves `.disconnected` — both restartable on their own.
+   * Shutting down is therefore only worth it when the session is stuck
+   * mid-flight (an error before the response went out), where the reader would
+   * otherwise sit waiting on a connection nobody is going to answer.
    */
   const closeSession = () => {
     try {
@@ -105,9 +113,8 @@ export default function PresentMdl() {
       setStep('confirm');
     } catch (e: unknown) {
       console.error('[presentMdl] engagement/request failed:', e);
-      // Same reasoning as the approve path: leave no half-open BLE session
-      // behind, or the next presentation starts against stale native state.
-      closeSession();
+      // No closeSession(): nothing is connected yet at this point, so there is
+      // no reader left hanging, and shutting down would only break the retry.
       setErrorMsg(e instanceof Error ? e.message : t('presentMdl.error_generic'));
       setStep('error');
     }
@@ -150,16 +157,17 @@ export default function PresentMdl() {
       setStep('done');
     } catch (e: unknown) {
       console.error('[presentMdl] sign/send failed:', e);
-      // Close the BLE session before showing the error. Without this the
-      // reader sits waiting for a DeviceResponse that will never arrive and
-      // eventually times out with no explanation. Dropping the connection at
-      // least tells it the session is over immediately.
+      // This is the one case worth shutting down for: a reader is connected
+      // and waiting for a DeviceResponse that will never come, so without this
+      // it hangs until its own timeout with nothing to explain why. Dropping
+      // the connection at least ends the wait immediately.
       //
-      // Ideally this would send a proper ISO 18013-5 session-termination
-      // status instead of just disconnecting, but the native module only
-      // exposes shutdown() — there is no API to send an error status
-      // (MdocDataTransferModule.swift exposes initialize/startQrEngagement/
-      // sendDeviceResponse/shutdown/enableNfc, nothing else).
+      // The cost is that the next QR will fail until the app restarts (see
+      // closeSession) — a stuck session is the lesser evil, but this is a
+      // genuine trade-off forced by the native module, not a clean fix.
+      // Sending a proper ISO 18013-5 session-termination status would avoid
+      // both, but the module exposes no API for it: only initialize,
+      // startQrEngagement, sendDeviceResponse, shutdown and enableNfc.
       closeSession();
       setErrorMsg(e instanceof Error ? e.message : t('presentMdl.error_generic'));
       setStep('error');
@@ -167,7 +175,11 @@ export default function PresentMdl() {
   };
 
   const handleReject = () => {
-    closeSession();
+    // No closeSession() here: cancelling is the case where the user is most
+    // likely to try again straight away, and shutting the native server down
+    // is precisely what makes the next QR fail (see closeSession). Leaving the
+    // session up costs an idle BLE advertisement that the next
+    // performDeviceEngagement replaces anyway.
     router.back();
   };
 
