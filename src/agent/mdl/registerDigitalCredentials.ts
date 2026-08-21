@@ -39,6 +39,13 @@ export async function registerMdlDigitalCredentials(mdocRecords: MdocRecord[]): 
   // any stale entries from a previous run (e.g. the one mdoc the wallet held
   // was deleted). Skipping the call here would leave Android showing an
   // offer for a credential that's already gone.
+  //
+  // matcher: 'cmwallet' (not 'ubique') — confirmed via
+  // DigitalCredentialsApiSingleton.kt's own comment ("for backward
+  // compatibility with Chrome") and empirically: 'ubique' expects the
+  // openid4vp-v1-signed shape (a JWT nested inside `data.request`), not the
+  // plain DCQL object Chrome sends for openid4vp-v1-unsigned — see
+  // 2026-08-21 C.7.3b status notes for the full investigation.
   await registerCredentials({
     matcher: 'cmwallet',
     credentials,

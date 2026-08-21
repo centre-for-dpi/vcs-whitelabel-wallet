@@ -59,6 +59,7 @@
     "plugins": [
       "./plugins/withCleartextTraffic",
       "./plugins/withNdkVersion",
+      "./plugins/withCredentialsRegistryVersion",
       "expo-router",
       "expo-dev-client",
       "expo-secure-store",
