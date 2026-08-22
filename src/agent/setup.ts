@@ -78,21 +78,34 @@ export type WalletAgent = Agent;
 // verifier for every "must match"/matchCertificate call site to confirm no
 // third field is checked before adding this comment) — C and ST are the
 // complete list, nothing else in the Subject DN is read.
-// Root subject: CN=CDPI mDL Test IACA AT,OU=mDL Test,O=CDPI,ST=AT-9,C=AT.
+// Root subject: CN=INTRANT POC IACA,O=POC-DO-NOT-TRUST,ST=DO-01,C=DO.
+//
+// Extracted from a credential this deployment actually issued, not from a
+// local file: the x5chain of a live mdoc was decoded and its root taken
+// verbatim, so the anchor cannot drift from what the issuer signs with.
+//
+// The two cross-checks above are why country and jurisdiction move together
+// with the certificate: an mdoc carrying issuing_country=DO and
+// issuing_jurisdiction=DO-01 only verifies against a signing cert whose
+// Subject has C=DO and ST=DO-01. The previous AT anchor worked only because
+// the profile's sample data was Austrian too.
+//
+// POC material, and it says so in its own DN (O=POC-DO-NOT-TRUST):
+// self-signed, no recognised authority behind it. Real certificate
+// provisioning belongs to the issuer-key-rotation design.
 const MDOC_TRUSTED_CERTIFICATES = [
   `-----BEGIN CERTIFICATE-----
-MIICJTCCAcqgAwIBAgIUSY8tLM/P1HsrWQjcYvGA3zNkaMwwCgYIKoZIzj0EAwIw
-XjELMAkGA1UEBhMCQVQxDTALBgNVBAgMBEFULTkxDTALBgNVBAoMBENEUEkxETAP
-BgNVBAsMCG1ETCBUZXN0MR4wHAYDVQQDDBVDRFBJIG1ETCBUZXN0IElBQ0EgQVQw
-HhcNMjYwODIwMTExNjE1WhcNNDEwODE2MTExNjE1WjBeMQswCQYDVQQGEwJBVDEN
-MAsGA1UECAwEQVQtOTENMAsGA1UECgwEQ0RQSTERMA8GA1UECwwIbURMIFRlc3Qx
-HjAcBgNVBAMMFUNEUEkgbURMIFRlc3QgSUFDQSBBVDBZMBMGByqGSM49AgEGCCqG
-SM49AwEHA0IABPwYFQrrSgcofGvKX0KrBILLS6+p7Gdr5DDX8fVcgoPuGk3NrCY/
-3P26E9WEp6vny0FDZTEswk8avrHZhS2a8smjZjBkMB8GA1UdIwQYMBaAFJ7Jb4uo
-TZ1yxVk7Nvi5pbzkpNX4MBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQD
-AgEGMB0GA1UdDgQWBBSeyW+LqE2dcsVZOzb4uaW85KTV+DAKBggqhkjOPQQDAgNJ
-ADBGAiEApiZNb49Vw4tSi3Y/b+Oh8uUIbC2oHOs9TVXxSBBDLSsCIQCnyT7EXXWM
-x4n9E4kIX2lN6jtq9QiiAsWOIiYxOmGSzA==
+MIIB6DCCAY2gAwIBAgIRAI7mbdaG/Rl1sGHKW2Qh40YwCgYIKoZIzj0EAwIwUzEL
+MAkGA1UEBhMCRE8xDjAMBgNVBAgTBURPLTAxMRkwFwYDVQQKExBQT0MtRE8tTk9U
+LVRSVVNUMRkwFwYDVQQDExBJTlRSQU5UIFBPQyBJQUNBMB4XDTI2MDgyMjE1NDYw
+N1oXDTMxMDgyMjE2NDYwN1owUzELMAkGA1UEBhMCRE8xDjAMBgNVBAgTBURPLTAx
+MRkwFwYDVQQKExBQT0MtRE8tTk9ULVRSVVNUMRkwFwYDVQQDExBJTlRSQU5UIFBP
+QyBJQUNBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmydYUCm8cBXkFK/D42eN
+WC7Um63klPYVGgl9hMuCmgog/TJSjt3wECjBFTo2cZKh3Z09F5ZmzfRu+iSwKMlM
+/KNCMEAwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE
+FE2Zu45cQUD6gV8HJR/RmQg6vB8CMAoGCCqGSM49BAMCA0kAMEYCIQDwlxmSpnk5
++7TMznBZ/vd38mjq9Te+VTy5XpwzJ9f47gIhAK56crbjVw5ZXEyRpGKc2CtLBUaP
+Ly5+B8iOHYFat1ZH
 -----END CERTIFICATE-----`,
 ];
 
