@@ -9,15 +9,29 @@
 // picker — C.7.3b) has a component to render into, no matter which route the
 // main app would otherwise have booted into.
 //
-// Imported from the package's dedicated /register subpath, not its main
-// export, per the README: importing from the main path would eagerly load
-// the native module and break normal app startup on every launch, not just
-// the GET_CREDENTIAL one.
-import registerGetCredentialComponent from '@animo-id/expo-digital-credentials-api/register';
+// ANDROID ONLY, and the guard has to be here rather than inside the imported
+// module. The package declares `"platforms": ["android"]` and ships no ios/
+// directory at all; its register() calls ensureAndroid(), which throws
+// `Expo Digital Credentials API library is not supported on iOS` outright.
+// A static `import` is hoisted and evaluated before any statement in this
+// file, so on iOS that throw happened before require('expo-router/entry')
+// could run — the app died at its entry point with no UI ever mounting, not
+// even the unlock screen. A white screen with a successful build is the exact
+// signature: the bundle is fine, it just throws on its first line.
+//
+// require() inside the branch keeps the module off the iOS execution path
+// entirely. Importing from the /register subpath (not the main export) is
+// still required on Android per the README: the main path eagerly loads the
+// native module and would break normal startup on every launch.
+if (require('react-native').Platform.OS === 'android') {
+  const registerGetCredentialComponent =
+    require('@animo-id/expo-digital-credentials-api/register').default;
+  const {
+    DigitalCredentialsRequestOverlay,
+  } = require('./src/components/DigitalCredentialsRequestOverlay');
 
-import { DigitalCredentialsRequestOverlay } from './src/components/DigitalCredentialsRequestOverlay';
-
-registerGetCredentialComponent(DigitalCredentialsRequestOverlay);
+  registerGetCredentialComponent(DigitalCredentialsRequestOverlay);
+}
 
 // eslint-disable-next-line import/no-unresolved
 require('expo-router/entry');
