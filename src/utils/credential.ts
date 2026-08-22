@@ -376,10 +376,105 @@ export const fromMdocRecord = (record: MdocRecord): CredentialEntry => {
 export const formatClaimKey = (key: string): string =>
   key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
+/**
+ * Byte-valued claims (ISO 18013-5 bstr elements: portrait,
+ * signature_usual_mark, the biometric_template_* family) decode to
+ * Uint8Array. JSON.stringify turns those into {"0":255,"1":216,...} — a wall
+ * of digits where a photo belongs. isImageClaim lets the UI render them
+ * properly instead; asDataUri builds the source.
+ *
+ * Sniffing the magic bytes rather than trusting the field name keeps this
+ * working for any bstr element, and avoids emitting an <Image> for a byte
+ * string that is not an image at all (signature_usual_mark may be either).
+ */
+export const asBytes = (value: unknown): Uint8Array | null => {
+  if (value instanceof Uint8Array) return value;
+  if (ArrayBuffer.isView(value)) return new Uint8Array((value as ArrayBufferView).buffer);
+  return null;
+};
+
+export const imageMimeType = (value: unknown): string | null => {
+  const b = asBytes(value);
+  if (!b || b.length < 4) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  return null;
+};
+
+export const isImageClaim = (value: unknown): boolean => imageMimeType(value) !== null;
+
+/** data: URI for an image-valued claim, or null when the claim is not an image. */
+export const claimImageUri = (value: unknown): string | null => {
+  const mime = imageMimeType(value);
+  const bytes = asBytes(value);
+  if (!mime || !bytes) return null;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return `data:${mime};base64,${global.btoa(binary)}`;
+};
+
+/** True when the value is a Date or an ISO date/date-time string. */
+const asDate = (value: unknown): Date | null => {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}([T ]|$)/.test(value)) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+/**
+ * ISO 18013-5 full-date elements (birth_date, issue_date, expiry_date,
+ * portrait_capture_date, and the dates nested inside driving_privileges)
+ * decode to Date. Rendering them raw produced "1990-05-14T00:00:00.000Z" —
+ * a timestamp for a value that carries no time at all.
+ *
+ * Formatted in the holder's own language via the active i18n locale, and
+ * date-only: a full-date has no meaningful time component, so showing
+ * midnight UTC invites the reader to mistake a timezone artifact for data.
+ */
+const formatDate = (d: Date): string => {
+  try {
+    return new Intl.DateTimeFormat(i18n.language, {
+      year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+};
+
 export const formatClaimValue = (value: unknown): string => {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? i18n.t('common.yes') : i18n.t('common.no');
   if (typeof value === 'number') return String(value);
-  if (typeof value === 'string') return value;
-  return JSON.stringify(value);
+
+  const date = asDate(value);
+  if (date) return formatDate(date);
+
+  if (typeof value === 'string') return value.length > 0 ? value : '—';
+
+  // Byte strings: never dump the digits. An image is rendered by the UI via
+  // claimImageUri; anything else gets a size summary.
+  const bytes = asBytes(value);
+  if (bytes) {
+    if (bytes.length === 0) return '—';
+    const mime = imageMimeType(value);
+    return mime ? `${mime} · ${Math.round(bytes.length / 1024)} KB` : `${bytes.length} bytes`;
+  }
+
+  // driving_privileges and any other nested structure: render as readable
+  // lines instead of raw JSON. JSON.stringify collapsed the Date fields
+  // inside each entry to {} — the "[{},{}]" an operator reported seeing.
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '—';
+    return value.map((v) => formatClaimValue(v)).join('\n');
+  }
+  if (typeof value === 'object') {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => `${formatClaimKey(k)}: ${formatClaimValue(v)}`);
+    return parts.length > 0 ? parts.join(' · ') : '—';
+  }
+
+  return String(value);
 };
