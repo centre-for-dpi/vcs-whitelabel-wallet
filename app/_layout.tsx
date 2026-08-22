@@ -6,6 +6,7 @@ if (typeof global.Buffer === 'undefined') global.Buffer = Buffer;
 import React, { useEffect, useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { isGetCredentialActivity } from '@animo-id/expo-digital-credentials-api';
 import { AgentProvider } from '../src/agent/context';
@@ -22,7 +23,17 @@ export default function RootLayout() {
   // package README's "Note on Expo Router" section: must only be called
   // once this component is already mounted, not at module scope, or app
   // loading can get stuck.
-  const isDcApiActivity = useMemo(() => isGetCredentialActivity(), []);
+  //
+  // Platform-gated: @animo-id/expo-digital-credentials-api declares
+  // "platforms": ["android"] and ships no ios/ implementation.
+  // isGetCredentialActivity() calls ensureAndroid() (throws a plain JS Error
+  // on iOS) before ever touching the native module — but this hook runs on
+  // every launch, unguarded, on both platforms. index.js's entry-point guard
+  // only covers registerGetCredentialComponent; this call site was missed.
+  const isDcApiActivity = useMemo(
+    () => (Platform.OS === 'android' ? isGetCredentialActivity() : false),
+    []
+  );
 
   useEffect(() => {
     initLanguagePreference();

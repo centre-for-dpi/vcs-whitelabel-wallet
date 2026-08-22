@@ -18,6 +18,23 @@
 // So: expo-router/entry first, and only then the Android registration.
 require('expo-router/entry');
 
+// Diagnostic: log uncaught JS errors before RN's default handler runs.
+// Added after an iOS crash whose device .ips carried only a generic C++
+// stack (objc_exception_rethrow / ObjCTurboModule::performVoidMethodInvocation)
+// with no exception message — Console.app wasn't available to get the real
+// reason. This won't fix a native-level crash (one that never reaches JS'
+// ErrorUtils at all), but it ensures the next uncaught JS-level exception on
+// either platform gets its message and stack into the log, not just a
+// symbol-less abort().
+{
+  const ErrorUtils = require('react-native').ErrorUtils;
+  const originalHandler = ErrorUtils?.getGlobalHandler?.();
+  ErrorUtils?.setGlobalHandler?.((error, isFatal) => {
+    console.error('[global-error-handler]', isFatal ? 'FATAL' : 'non-fatal', error?.message, error?.stack);
+    originalHandler?.(error, isFatal);
+  });
+}
+
 // registerGetCredentialComponent gives Android's
 // androidx.credentials.registry.provider.action.GET_CREDENTIAL intent (fired
 // when the user picks cdpi-wallet from the system credential picker — C.7.3b)
