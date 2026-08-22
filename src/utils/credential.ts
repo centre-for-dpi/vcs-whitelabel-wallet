@@ -462,19 +462,79 @@ export const formatClaimValue = (value: unknown): string => {
     return mime ? `${mime} · ${Math.round(bytes.length / 1024)} KB` : `${bytes.length} bytes`;
   }
 
-  // driving_privileges and any other nested structure: render as readable
-  // lines instead of raw JSON. JSON.stringify collapsed the Date fields
-  // inside each entry to {} — the "[{},{}]" an operator reported seeing.
+  // Nested structures: see claimShape, which the UI uses to render a table
+  // or a property list. This text form is the fallback for callers that can
+  // only take a string, and for nesting inside a table cell.
   if (Array.isArray(value)) {
     if (value.length === 0) return '—';
+    if (!value.some(isPlainObject)) {
+      return value.map((v) => formatClaimValue(v)).join(', ');
+    }
     return value.map((v) => formatClaimValue(v)).join('\n');
   }
-  if (typeof value === 'object') {
-    const parts = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+  if (isPlainObject(value)) {
+    const parts = objectEntries(value)
       .map(([k, v]) => `${formatClaimKey(k)}: ${formatClaimValue(v)}`);
     return parts.length > 0 ? parts.join(' · ') : '—';
   }
 
   return String(value);
+};
+
+/**
+ * A plain data object — not a Date, not a byte string, not an array. All
+ * three satisfy `typeof x === 'object'` and each needs different treatment,
+ * so every structural branch tests this rather than typeof alone.
+ */
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+  && !(v instanceof Date) && asBytes(v) === null;
+
+/** Object entries with empty values dropped, so blank rows/columns vanish. */
+const objectEntries = (v: unknown): [string, unknown][] =>
+  Object.entries(v as Record<string, unknown>)
+    .filter(([, val]) => val !== null && val !== undefined && val !== '');
+
+/**
+ * How a claim should be laid out. The UI switches on `kind`; every decision
+ * is derived from the value's own shape, so a docType this wallet has never
+ * seen renders correctly without a per-field rule.
+ *
+ *   table  — array of objects: one column per key, one row per entry
+ *   list   — a single object: property name beside its value
+ *   scalar — everything else, already rendered by formatClaimValue
+ *
+ * Columns are the union of keys in first-seen order, not the first entry's
+ * keys: entries in an mdoc array are not required to carry identical key
+ * sets, and a later entry's extra field would otherwise be dropped silently.
+ */
+export type ClaimShape =
+  | { kind: 'scalar'; text: string }
+  | { kind: 'list'; rows: { key: string; value: string }[] }
+  | { kind: 'table'; columns: string[]; rows: string[][] };
+
+export const claimShape = (value: unknown): ClaimShape => {
+  if (Array.isArray(value) && value.length > 0 && value.every(isPlainObject)) {
+    const columns: string[] = [];
+    for (const entry of value) {
+      for (const k of Object.keys(entry)) if (!columns.includes(k)) columns.push(k);
+    }
+    const rows = value.map((entry) =>
+      columns.map((c) => {
+        const cell = (entry as Record<string, unknown>)[c];
+        return cell === null || cell === undefined || cell === ''
+          ? '—'
+          : formatClaimValue(cell);
+      }),
+    );
+    return { kind: 'table', columns: columns.map(formatClaimKey), rows };
+  }
+
+  if (isPlainObject(value)) {
+    const rows = objectEntries(value)
+      .map(([k, v]) => ({ key: formatClaimKey(k), value: formatClaimValue(v) }));
+    if (rows.length > 0) return { kind: 'list', rows };
+  }
+
+  return { kind: 'scalar', text: formatClaimValue(value) };
 };

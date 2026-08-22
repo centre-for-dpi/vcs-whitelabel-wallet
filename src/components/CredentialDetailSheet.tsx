@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -14,11 +13,11 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { branding } from '../../branding.config';
+import { ClaimBody } from './ClaimBody';
 import { checkRevocationStatus, type RevocationStatus } from '../agent/revocation';
 import {
   CredentialEntry,
   daysUntilExpiry,
-  claimImageUri,
   formatClaimKey,
   formatClaimValue,
   getExpiryStatus,
@@ -163,16 +162,7 @@ export const CredentialDetailSheet: React.FC<Props> = ({ entry, onClose, onPrese
                           itself; formatClaimValue would otherwise print a
                           mime/size summary, since dumping the raw bytes was
                           what produced a wall of digits. */}
-                      {claimImageUri(entry.claims[key]) ? (
-                        <Image
-                          source={{ uri: claimImageUri(entry.claims[key]) as string }}
-                          style={styles.claimImage}
-                          resizeMode="contain"
-                          accessibilityLabel={formatClaimKey(key)}
-                        />
-                      ) : (
-                        <Text style={styles.claimValue}>{formatClaimValue(entry.claims[key])}</Text>
-                      )}
+                      <ClaimBody value={entry.claims[key]} label={formatClaimKey(key)} />
                     </View>
                   ))}
                 </View>
@@ -226,15 +216,6 @@ const styles = StyleSheet.create({
   claim: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   claimKey: { fontSize: 12, color: '#6B7280', marginBottom: 2 },
   claimValue: { fontSize: 15, color: '#111827', fontWeight: '500' },
-  // Portrait-sized, not full-bleed: an ISO 18013-5 portrait is a small
-  // headshot and stretching it across the sheet reads as a banner.
-  claimImage: {
-    width: 120,
-    height: 150,
-    borderRadius: 6,
-    backgroundColor: '#F3F4F6',
-    marginTop: 4,
-  },
 
   // Action buttons, side by side
   actionsRow: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginTop: 16 },

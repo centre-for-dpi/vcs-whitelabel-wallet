@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +13,12 @@ import { useTranslation } from 'react-i18next';
 import type { SdJwtVcRecord } from '@credo-ts/core';
 import { SdJwtVcRepository } from '@credo-ts/core';
 import { branding } from '../../../branding.config';
+import { ClaimBody } from '../../../src/components/ClaimBody';
 import { useAgentState } from '../../../src/agent/context';
 import {
   CredentialEntry,
   daysUntilExpiry,
   formatClaimKey,
-  claimImageUri,
   formatClaimValue,
   fromSdJwtRecord,
   fromW3cRecord,
@@ -201,18 +200,7 @@ export default function CredentialDetail() {
                   </View>
                 )}
               </View>
-              {/* Image-valued claims (portrait) render as the picture, not
-                  as a mime/size summary — see claimImageUri. */}
-              {claimImageUri(value) ? (
-                <Image
-                  source={{ uri: claimImageUri(value) as string }}
-                  style={styles.claimImage}
-                  resizeMode="contain"
-                  accessibilityLabel={formatClaimKey(key)}
-                />
-              ) : (
-                <Text style={styles.claimValue}>{formatClaimValue(value)}</Text>
-              )}
+              <ClaimBody value={value} label={formatClaimKey(key)} />
             </View>
           );
         })}
@@ -257,14 +245,6 @@ const styles = StyleSheet.create({
   sdBadge: { backgroundColor: '#EEF2FF', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   sdBadgeText: { fontSize: 10, fontWeight: '700', color: '#4F46E5', letterSpacing: 0.5 },
   claimValue: { fontSize: 15, color: '#111827', fontWeight: '500' },
-  // Portrait-sized: an ISO 18013-5 portrait is a headshot, not a banner.
-  claimImage: {
-    width: 120,
-    height: 150,
-    borderRadius: 6,
-    backgroundColor: '#F3F4F6',
-    marginTop: 4,
-  },
   actionBtn: { margin: 16, marginTop: 24, height: 52, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   deleteBtn: { marginHorizontal: 16, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FCA5A5' },
