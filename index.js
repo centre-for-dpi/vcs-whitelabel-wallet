@@ -3,39 +3,46 @@
 // links to Expo Router's own custom-entry-point guide,
 // https://docs.expo.dev/router/installation/#custom-entry-point-to-initialize-and-load).
 //
-// registerGetCredentialComponent must run before expo-router/entry loads the
-// app, so Android's androidx.credentials.registry.provider.action.GET_CREDENTIAL
-// intent (fired when the user picks cdpi-wallet from the system credential
-// picker — C.7.3b) has a component to render into, no matter which route the
-// main app would otherwise have booted into.
+// ORDER IS LOAD-BEARING. '@expo/metro-runtime' must be the first import in the
+// entry point: expo-router/entry-classic.js opens with the comment
+// "`@expo/metro-runtime` MUST be the first import" and imports it before
+// anything else, and it installs global runtime setup (location polyfills,
+// the RSC runtime) that the rest of the app assumes is already in place.
 //
-// The CALL is Android-only; the imports stay static and unconditional.
+// Setting "main": "index.js" in package.json moved the entry point here, so
+// this file — not expo-router/entry — is what loads first. Any import placed
+// above expo-router/entry therefore runs BEFORE metro-runtime is installed.
+// That is what took iOS down: first a white screen, then an outright crash on
+// launch once the import was reshuffled. Android tolerated it; iOS did not.
 //
-// The package declares `"platforms": ["android"]`, ships no ios/ directory,
-// and its register() calls ensureAndroid(), which throws
-// `Expo Digital Credentials API library is not supported on iOS`. Calling it
-// unconditionally killed iOS at its entry point — white screen, no UI, not
-// even the unlock screen, while every CI build stayed green because the
-// bundle itself is fine and only throws at runtime.
+// So: expo-router/entry first, and only then the Android registration.
+require('expo-router/entry');
+
+// registerGetCredentialComponent gives Android's
+// androidx.credentials.registry.provider.action.GET_CREDENTIAL intent (fired
+// when the user picks cdpi-wallet from the system credential picker — C.7.3b)
+// a component to render into.
 //
-// Guarding with require() inside an `if` instead was WORSE: it turned the
-// white screen into an immediate crash on launch. metro.config.js sets
-// unstable_enablePackageExports, so a runtime require() of the /register
-// subpath resolves differently from the static import the bundler prepares.
-// Importing statically and guarding only the call is what the rest of the
-// codebase already does — see app/(tabs)/credentials/index.tsx, which imports
+// The CALL is Android-only; the import is inert everywhere. The package
+// declares "platforms": ["android"], ships no ios/ directory, and its
+// register() calls ensureAndroid(), which throws
+// `Expo Digital Credentials API library is not supported on iOS`. Verified in
+// the package's own build output that ensureAndroid() sits INSIDE register()
+// and neither register.js nor util.js does anything at module scope, so
+// importing on iOS is safe and only invoking it is not.
+//
+// Guarding the call (rather than the import) is also what the rest of the
+// codebase does — see app/(tabs)/credentials/index.tsx, which imports
 // registerMdlDigitalCredentials at module scope and wraps only the invocation
-// in `Platform.OS === 'android'`. Importing the module is harmless on iOS;
-// invoking it is not.
-import { Platform } from 'react-native';
-
-import registerGetCredentialComponent from '@animo-id/expo-digital-credentials-api/register';
-
-import { DigitalCredentialsRequestOverlay } from './src/components/DigitalCredentialsRequestOverlay';
+// in `Platform.OS === 'android'`.
+const { Platform } = require('react-native');
 
 if (Platform.OS === 'android') {
+  const registerGetCredentialComponent =
+    require('@animo-id/expo-digital-credentials-api/register').default;
+  const {
+    DigitalCredentialsRequestOverlay,
+  } = require('./src/components/DigitalCredentialsRequestOverlay');
+
   registerGetCredentialComponent(DigitalCredentialsRequestOverlay);
 }
-
-// eslint-disable-next-line import/no-unresolved
-require('expo-router/entry');
