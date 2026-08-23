@@ -186,6 +186,15 @@ npm run build:ios:production       # iOS IPA (App Store)
 - Issuer trust badge during accept (trusted / unknown / untrusted)
 - OIDC-backed issuance: SSO via `expo-auth-session`, refresh-token storage, server-side logout via `revocation_endpoint`
 
+### mdoc (ISO/IEC 18013-5) — mDL, Photo ID
+- Accepts `mso_mdoc` credentials (national ID / driving licence style) alongside SD-JWT and W3C formats, over the same OID4VCI flow
+- Renders mdoc-specific value shapes generically: CBOR full-dates as localized dates, byte-string images (portrait, signature/usual mark) sniffed by magic bytes, and array-of-object fields (e.g. `driving_privileges`) as a scrollable table — see `src/utils/credential.ts::claimShape`
+- **Dynamic trust anchor resolution** (`src/agent/mdocTrustAnchors.ts`): fetches the issuing deployment's *current* IACA root from `GET {credential_issuer origin}/trust/mdoc-anchors` at verification time, so a redeploy that rotates the issuer's signing root does not require rebuilding this app. Unions the fetched anchor with a compiled-in static fallback (`setup.ts::MDOC_TRUSTED_CERTIFICATES`) — credentials issued under a prior root keep verifying after a rotation
+  - Only fetches for `verification.type === 'credential'`, and only when an issuer origin was actually recorded for this verification (never for offline presentation, never for non-credential verification types)
+  - Never derives the fetch URL from the certificate chain being verified — only from the OID4VCI `credential_issuer` field, so a hostile credential cannot nominate its own auditor
+  - On fetch failure, serves a stale cached anchor if one exists (still evidence the issuer served it over TLS at some point) before falling through to the static fallback
+  - **This is a POC-grade trust mechanism**, documented as such: the anchor is served unsigned by the issuer itself, so the ceiling is "the issuer's own claim over TLS, from the exact origin the offer came from" — not an independently-audited trust list. A production deployment should replace the per-issuer endpoint with a VICAL-shaped list signed by an authority distinct from any single issuer (e.g. a central Hub's trust registry). See `docs/superpowers/adr/2026-08-23-mdl-trust-anchor-distribution.md` in the issuer-side repo for the full design and migration path.
+
 ### Presentation — OpenID4VP
 - Presentation Exchange (PEX) matching by `$.vct`, `$.vc.type`, and `credentialVct` tag
 - DCQL (`dcql_query`) with `vct_values` matching
@@ -313,3 +322,8 @@ Set `requireHttps: false` in `branding.config.ts` to route HTTP `response_uri` e
 
 **App language not changing**
 Language follows the device locale automatically (supported: `en`, `es`, `fr`). Add one by copying `src/i18n/locales/en.ts` and registering it in `src/i18n/index.ts`.
+
+**mdoc (mDL) credential fails with "No trusted certificate was found"**
+Credo's mdoc verifier needs a trusted root for the signing chain. This app resolves it two ways: a compiled-in static fallback (`setup.ts::MDOC_TRUSTED_CERTIFICATES`) and a dynamic fetch from the issuer's `GET /trust/mdoc-anchors` (`src/agent/mdocTrustAnchors.ts`) — see the "mdoc (ISO/IEC 18013-5)" feature above. If this error appears against an issuer that previously worked:
+- The issuer likely rotated its signing root (e.g. a redeploy that regenerated the IACA) — confirm the dynamic fetch actually reaches the issuer: `curl -s -o /dev/null -w "%{http_code}\n" "<credential_issuer origin>/trust/mdoc-anchors"`. A 404 here (while the issuer's own service domain returns 200 for the same path) is a server-side routing gap, not a wallet bug — the issuer needs to proxy that path from the origin its OID4VCI offers advertise as `credential_issuer`.
+- If the fetch 200s but the error persists, the issuer's cert may genuinely not chain to anything this wallet is willing to trust (e.g. missing `countryName`/`stateOrProvinceName` cross-checks against the mdoc's `issuing_country`/`issuing_jurisdiction` data elements) — decode the credential's x5chain and compare against its data elements directly rather than assuming the trust-anchor mechanism itself is broken.
