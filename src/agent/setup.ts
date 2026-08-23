@@ -15,6 +15,7 @@ import { agentDependencies } from '@credo-ts/react-native';
 import { AskarModule } from '@credo-ts/askar';
 import { OpenId4VcModule } from '@credo-ts/openid4vc';
 import { askar } from '@openwallet-foundation/askar-react-native';
+import { createTrustedCertificatesResolver } from './mdocTrustAnchors';
 
 export type WalletAgent = Agent;
 
@@ -33,9 +34,26 @@ export type WalletAgent = Agent;
 // This is a static allowlist scoped to today's single test issuer
 // (issuer-api2 on cdpi-vps, profile isoMdl). It is NOT a general trust
 // registry — see src/agent/trust.ts's trustRegistry for the (cosmetic-only,
-// unrelated) issuer-name badge. A dynamic per-issuer resolver
-// (X509ModuleConfig.getTrustedCertificatesForVerification) is the intended
-// longer-term replacement once there's more than one mdoc issuer to trust.
+// unrelated) issuer-name badge.
+//
+// NO LONGER THE ONLY SOURCE — now the FALLBACK. The dynamic per-issuer
+// resolver this comment used to describe as "the intended longer-term
+// replacement" is implemented: src/agent/mdocTrustAnchors.ts fetches the
+// deployment's CURRENT anchor from the issuer's GET /trust/mdoc-anchors and is
+// wired into X509Module below as getTrustedCertificatesForVerification.
+//
+// The array below is kept, deliberately, for three reasons:
+//   1. Credo falls back to it whenever the resolver returns undefined — a
+//      deployment that predates the endpoint, an offer with no usable issuer
+//      URL, or any non-credential verification type.
+//   2. Credo throws "No trusted certificates found. Cannot verify mdoc." when
+//      X509Module has NO trustedCertificates at all, independently of what the
+//      resolver returns, so emptying it would break verification outright.
+//   3. Credentials already issued under this root must keep verifying after a
+//      redeploy rotates the issuer's root — the resolver unions the two sets
+//      rather than replacing one with the other.
+// It is a floor, not the source of truth; it is expected to go stale, and that
+// is now survivable rather than fatal.
 //
 // walt.id's own issuer2 sample "defaultIssuerX5chain" cert turned out to be
 // unusable: its Issuer DN is only "CN=MDOC ROOT CA", no countryName. Credo's
@@ -93,6 +111,20 @@ export type WalletAgent = Agent;
 // POC material, and it says so in its own DN (O=POC-DO-NOT-TRUST):
 // self-signed, no recognised authority behind it. Real certificate
 // provisioning belongs to the issuer-key-rotation design.
+//
+// THE THREE CROSS-CHECKS ABOVE STILL BIND THE FETCHED ANCHOR. Nothing about
+// fetching the root dynamically relaxes them: @animo-id/mdoc still requires C
+// on the chain's Issuer DN, and still cross-checks the mdoc's issuing_country
+// against countryName and issuing_jurisdiction against stateOrProvinceName in
+// the signing cert's Subject. cmd/mdl-pki-gen generates C/ST from
+// VERIFIABLY_ISSUER2_CERT_COUNTRY/_PROVINCE, so an operator who changes those
+// without changing issuer2-profiles.conf's sample data reintroduces exactly the
+// "must match the countryName" rejection documented above — the failure just
+// arrives from a fetched certificate instead of this constant.
+//
+// The C.7.3b Android registration path is unaffected, as before: it is
+// Android-only and does not consult X509Module's trusted certificates, so
+// neither this array nor the dynamic resolver touches it.
 const MDOC_TRUSTED_CERTIFICATES = [
   `-----BEGIN CERTIFICATE-----
 MIIB6DCCAY2gAwIBAgIRAI7mbdaG/Rl1sGHKW2Qh40YwCgYIKoZIzj0EAwIwUzEL
@@ -143,7 +175,17 @@ export const setupAgent = async (walletKey: string): Promise<WalletAgent> => {
       }),
       w3cCredentials: new W3cCredentialsModule(),
       x509: new X509Module({
+        // Static list retained as the fallback Credo uses whenever the resolver
+        // returns undefined — see the block comment above for why emptying it
+        // would break mdoc verification outright.
         trustedCertificates: MDOC_TRUSTED_CERTIFICATES,
+        // Dynamic anchors: fetch the issuing deployment's CURRENT IACA so a
+        // redeploy that regenerates the root does not require recompiling this
+        // app. POC — the issuer serves its own anchor; production replaces this
+        // with the Hub's VICAL, signed by an authority distinct from the
+        // issuer. See src/agent/mdocTrustAnchors.ts.
+        getTrustedCertificatesForVerification:
+          createTrustedCertificatesResolver(MDOC_TRUSTED_CERTIFICATES),
       }),
     },
     dependencies: agentDependencies,

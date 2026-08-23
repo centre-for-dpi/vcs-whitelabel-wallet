@@ -2,6 +2,7 @@ import { DidsApi, Kms, TypedArrayEncoder } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
 import { credentialBindingResolver } from '../credentialBinding';
+import { setCurrentIssuerBaseUrl, clearCurrentIssuerBaseUrl } from '../mdocTrustAnchors';
 
 /* eslint-disable no-console */
 const log = __DEV__ ? console.log.bind(console) : () => {};
@@ -320,32 +321,49 @@ export async function requestOid4VciCredentials(
   // proof format (credential_configuration_id + proofs) automatically.
   const credoConfigs = configs.filter(([]) => !legacy);
   if (credoConfigs.length > 0) {
-    const { credentials, deferredCredentials } = await holder.requestCredentials({
-      resolvedCredentialOffer: offer as unknown as OpenId4VciResolvedCredentialOffer,
-      accessToken,
-      cNonce,
-      dpop,
-      credentialBindingResolver,
-    });
-    log('[oid4vci] requestCredentials returned:', credentials.length,
-      'immediate,', deferredCredentials.length, 'deferred');
-
-    let allCredentials = [...credentials];
-    for (const deferred of deferredCredentials) {
-      const waitMs = Math.min((deferred.interval ?? 5) * 1000, 10_000);
-      await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
-      const result = await holder.requestDeferredCredentials({
-        issuerMetadata: offerObj.metadata,
-        transactionId: deferred.transactionId,
-        credentialConfigurationId: deferred.credentialConfigurationId,
-        credentialConfiguration: deferred.credentialConfiguration,
+    // Tell the mdoc trust-anchor resolver which deployment to ask before
+    // handing control to Credo. holder.requestCredentials() is what triggers
+    // Mdoc.verify(), which is what invokes
+    // X509Module.getTrustedCertificatesForVerification — and that callback
+    // receives only the certificate chain, with no way to pass the issuer URL
+    // through it (see src/agent/mdocTrustAnchors.ts). issuerUrl here is the
+    // OID4VCI `credential_issuer` the wallet already resolved for this offer.
+    //
+    // Scoped with try/finally, and spanning the deferred-credential retrieval
+    // too, because deferred credentials are verified against the same anchors
+    // when they eventually arrive. Clearing on the way out keeps a failed or
+    // abandoned issuance from leaving a stale issuer recorded for the next one.
+    setCurrentIssuerBaseUrl(issuerUrl);
+    try {
+      const { credentials, deferredCredentials } = await holder.requestCredentials({
+        resolvedCredentialOffer: offer as unknown as OpenId4VciResolvedCredentialOffer,
         accessToken,
+        cNonce,
         dpop,
+        credentialBindingResolver,
       });
-      allCredentials = [...allCredentials, ...result.credentials];
-    }
-    for (const item of allCredentials) {
-      results.push({ path: 'credo', configId: item.credentialConfigurationId, record: item.record });
+      log('[oid4vci] requestCredentials returned:', credentials.length,
+        'immediate,', deferredCredentials.length, 'deferred');
+
+      let allCredentials = [...credentials];
+      for (const deferred of deferredCredentials) {
+        const waitMs = Math.min((deferred.interval ?? 5) * 1000, 10_000);
+        await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+        const result = await holder.requestDeferredCredentials({
+          issuerMetadata: offerObj.metadata,
+          transactionId: deferred.transactionId,
+          credentialConfigurationId: deferred.credentialConfigurationId,
+          credentialConfiguration: deferred.credentialConfiguration,
+          accessToken,
+          dpop,
+        });
+        allCredentials = [...allCredentials, ...result.credentials];
+      }
+      for (const item of allCredentials) {
+        results.push({ path: 'credo', configId: item.credentialConfigurationId, record: item.record });
+      }
+    } finally {
+      clearCurrentIssuerBaseUrl();
     }
   }
 
