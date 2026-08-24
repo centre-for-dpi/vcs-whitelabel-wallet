@@ -9,6 +9,7 @@ import { branding } from '../branding.config';
 import { useAgentState } from '../src/agent/context';
 import { parseRequestedElements, filterByRequest } from '../src/agent/mdl/presentMdoc';
 import { buildDeviceResponse, type MdocDeviceAuthAlgorithm } from '../src/agent/mdl/signDeviceResponse';
+import { flattenMdocNamespaces } from '../src/utils/credential';
 
 /* eslint-disable no-console */
 const log = __DEV__ ? console.log.bind(console) : () => {};
@@ -132,7 +133,12 @@ export default function PresentMdl() {
       // actual disclosure boundary enforced against the parsed DeviceRequest.
       // Calling it here just confirms locally that what's about to be signed
       // matches what the consent screen showed the user.
-      const storedClaims = Object.assign({}, ...Object.values(mdoc.issuerSignedNamespaces ?? {}));
+      //
+      // flattenMdocNamespaces (src/utils/credential.ts) handles
+      // issuerSignedNamespaces being a real Map, not a plain object — see its
+      // doc comment. The old Object.values(...) spread here was always empty,
+      // so this check silently checked nothing.
+      const storedClaims = flattenMdocNamespaces(mdoc.issuerSignedNamespaces);
       filterByRequest(storedClaims, requestedElements);
 
       const devicePublicJwk = mdoc.deviceKey.toJson();

@@ -68,12 +68,23 @@ export async function registerMdlDigitalCredentials(mdocRecords: MdocRecord[]): 
  */
 function toCredentialItem(record: MdocRecord): CredentialItem | null {
   const mdoc = record.firstCredential;
-  const namespaces = mdoc.issuerSignedNamespaces ?? {};
+  // mdoc.issuerSignedNamespaces is a real Map<string, Map<string, unknown>>
+  // (@animo-id/mdoc's CBOR decoder uses mapsAsObjects: false), not a plain
+  // object — Object.entries(aMap) returns [] because a Map's pairs are not
+  // enumerable own properties. That silently registered zero namespaces for
+  // every mdoc here; iterate Maps explicitly instead of assuming an object.
+  const namespaces = mdoc.issuerSignedNamespaces;
+  const namespaceEntries: [string, unknown][] = namespaces instanceof Map
+    ? Array.from(namespaces.entries())
+    : Object.entries(namespaces ?? {});
 
   const registryNamespaces: CredentialConfigurationMdoc['namespaces'] = {};
-  for (const [namespace, elements] of Object.entries(namespaces)) {
+  for (const [namespace, elements] of namespaceEntries) {
+    const elementEntries: [string, unknown][] = elements instanceof Map
+      ? Array.from(elements.entries())
+      : Object.entries(elements as Record<string, unknown>);
     const converted: Record<string, string | number | boolean | null> = {};
-    for (const [elementIdentifier, value] of Object.entries(elements)) {
+    for (const [elementIdentifier, value] of elementEntries) {
       converted[elementIdentifier] = toRegistrableValue(value);
     }
     registryNamespaces[namespace] = converted;

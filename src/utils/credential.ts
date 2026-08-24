@@ -331,6 +331,43 @@ export const fromW3cV2Record = (record: W3cV2CredentialRecord): CredentialEntry 
 };
 
 /**
+ * Flattens an mdoc's issuerSignedNamespaces into a single claim map.
+ *
+ * @animo-id/mdoc's CBOR decoder is configured with `mapsAsObjects: false`
+ * (its own `encoderDefaults`), so `issuerSignedNamespaces` is a REAL
+ * `Map<string, Map<string, unknown>>`, never a plain object — and every
+ * nested CBOR map inside a claim value (e.g. each entry of
+ * driving_privileges) is a Map too. `Object.values`/`Object.entries` on a
+ * Map always return `[]`, because a Map's pairs are internal state, not
+ * enumerable own properties — so naively spreading/assigning over one
+ * silently produces an empty result. Confirmed by decoding a live-issued
+ * mDL's CBOR directly with @animo-id/mdoc: `allIssuerSignedNamespaces`
+ * really is a Map, and the naive Object.values(namespaces) loop this
+ * replaced never ran a single iteration for any mdoc, ever.
+ *
+ * Nested Map values (driving_privileges' entries) are left as-is here —
+ * `isPlainObject`/`entriesOf`/`keysOf` in this file, and the equivalent
+ * handling in registerDigitalCredentials.ts, already treat a Map as a
+ * valid keyed structure downstream.
+ */
+export const flattenMdocNamespaces = (
+  namespaces: Map<string, Map<string, unknown>> | Record<string, Record<string, unknown>> | undefined,
+): Record<string, unknown> => {
+  const claims: Record<string, unknown> = {};
+  const namespaceValues: unknown[] = namespaces instanceof Map
+    ? Array.from(namespaces.values())
+    : Object.values(namespaces ?? {});
+  for (const ns of namespaceValues) {
+    if (ns instanceof Map) {
+      for (const [k, v] of ns.entries()) claims[k] = v;
+    } else if (ns && typeof ns === 'object') {
+      Object.assign(claims, ns);
+    }
+  }
+  return claims;
+};
+
+/**
  * mso_mdoc (ISO/IEC 18013-5, e.g. mDL). Unlike SD-JWT/W3C, mdoc has no issuer/vc
  * envelope to read a display name or issuer identity from — the credentialName/
  * issuerName tags set in storeCredential.ts are the only source for those; claims
@@ -347,9 +384,7 @@ export const fromMdocRecord = (record: MdocRecord): CredentialEntry => {
     : cleanCredentialType(mdoc.docType.split('.').pop() ?? mdoc.docType);
   const issuer = typeof tags.issuerName === 'string' ? tags.issuerName : i18n.t('receive.unknown_issuer');
 
-  const namespaces = mdoc.issuerSignedNamespaces ?? {};
-  const claims: Record<string, unknown> = {};
-  for (const ns of Object.values(namespaces)) Object.assign(claims, ns);
+  const claims = flattenMdocNamespaces(mdoc.issuerSignedNamespaces);
 
   let issuanceDate = new Date().toISOString();
   let expiryDate: string | undefined;
@@ -482,17 +517,36 @@ export const formatClaimValue = (value: unknown): string => {
 };
 
 /**
- * A plain data object — not a Date, not a byte string, not an array. All
- * three satisfy `typeof x === 'object'` and each needs different treatment,
- * so every structural branch tests this rather than typeof alone.
+ * A keyed data structure — a plain object OR a Map — but not a Date, a byte
+ * string, or an array. All these satisfy `typeof x === 'object'` and each
+ * needs different treatment, so every structural branch tests this rather
+ * than typeof alone.
+ *
+ * Map is included because @animo-id/mdoc's CBOR decoder is configured with
+ * `mapsAsObjects: false` (its own encoderDefaults), so every nested CBOR map
+ * inside an mdoc claim — e.g. each entry of driving_privileges — arrives as
+ * a real JS Map, not a plain object. Object.keys/Object.entries return `[]`
+ * for a Map (its pairs are internal state, not enumerable own properties),
+ * so treating a Map as "not a plain object" silently rendered every nested
+ * mdoc field as an empty {} — confirmed by decoding a live-issued mDL's CBOR
+ * and finding driving_privileges correctly shaped upstream, with the empty
+ * render only reproducible client-side once its entries were real Maps.
  */
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+const isPlainObject = (v: unknown): v is Record<string, unknown> | Map<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
   && !(v instanceof Date) && asBytes(v) === null;
 
-/** Object entries with empty values dropped, so blank rows/columns vanish. */
+/** Key/value pairs of a plain object OR a Map, uniformly. */
+const entriesOf = (v: Record<string, unknown> | Map<string, unknown>): [string, unknown][] =>
+  v instanceof Map ? Array.from(v.entries()) : Object.entries(v);
+
+/** Keys of a plain object OR a Map, uniformly, in insertion/definition order. */
+const keysOf = (v: Record<string, unknown> | Map<string, unknown>): string[] =>
+  v instanceof Map ? Array.from(v.keys()) : Object.keys(v);
+
+/** Object/Map entries with empty values dropped, so blank rows/columns vanish. */
 const objectEntries = (v: unknown): [string, unknown][] =>
-  Object.entries(v as Record<string, unknown>)
+  entriesOf(v as Record<string, unknown> | Map<string, unknown>)
     .filter(([, val]) => val !== null && val !== undefined && val !== '');
 
 /**
@@ -516,12 +570,12 @@ export type ClaimShape =
 export const claimShape = (value: unknown): ClaimShape => {
   if (Array.isArray(value) && value.length > 0 && value.every(isPlainObject)) {
     const columns: string[] = [];
-    for (const entry of value) {
-      for (const k of Object.keys(entry)) if (!columns.includes(k)) columns.push(k);
+    for (const entry of value as (Record<string, unknown> | Map<string, unknown>)[]) {
+      for (const k of keysOf(entry)) if (!columns.includes(k)) columns.push(k);
     }
-    const rows = value.map((entry) =>
+    const rows = (value as (Record<string, unknown> | Map<string, unknown>)[]).map((entry) =>
       columns.map((c) => {
-        const cell = (entry as Record<string, unknown>)[c];
+        const cell = entry instanceof Map ? entry.get(c) : entry[c];
         return cell === null || cell === undefined || cell === ''
           ? '—'
           : formatClaimValue(cell);
