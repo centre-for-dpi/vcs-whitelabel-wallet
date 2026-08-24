@@ -23,6 +23,7 @@ import {
   getExpiryStatus,
   getSdJwtCompact,
   issuerCardColor,
+  supportsSelectiveDisclosure,
 } from '../utils/credential';
 
 type Props = {
@@ -76,7 +77,7 @@ export const CredentialDetailSheet: React.FC<Props> = ({ entry, onClose, onPrese
     new Date(iso).toLocaleDateString(i18n.language, { year: 'numeric', month: 'long', day: 'numeric' });
 
   const expiryStatus = entry ? getExpiryStatus(entry.expiryDate) : 'none';
-  const selective = (entry?.sdFields.length ?? 0) > 0;
+  const selective = entry ? supportsSelectiveDisclosure(entry) : false;
 
   let expiryLabel: string | null = null;
   if (entry?.expiryDate) {

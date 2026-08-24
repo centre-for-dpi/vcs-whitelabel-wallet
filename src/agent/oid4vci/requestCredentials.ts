@@ -67,6 +67,7 @@ export type ManualMdocResult = {
 export type CredoResult = {
   path: 'credo';
   configId: string;
+  displayName?: string;
   record: unknown;
 };
 
@@ -321,6 +322,26 @@ export async function requestOid4VciCredentials(
   // proof format (credential_configuration_id + proofs) automatically.
   const credoConfigs = configs.filter(([]) => !legacy);
   if (credoConfigs.length > 0) {
+    // The per-configId displayName computed in the loop above (line ~206) goes
+    // out of scope once that loop ends — holder.requestCredentials() below
+    // returns credentials keyed by credentialConfigurationId, not indexed
+    // against that loop's iteration, so the mapping has to be rebuilt here to
+    // survive into the results.push({ path: 'credo', ... }) call further down.
+    // Without this, storeCredential.ts never receives a displayName for the
+    // 'credo' path (mdoc/mso_mdoc's only path — see requestCredentials'
+    // CredoResult type), and falls back to formatConfigId(configId) — which is
+    // how an operator-set name like "mDL v22" became "M Dl" in storage: the
+    // wellknown/offer screen showed the real display name correctly (it reads
+    // straight from the offer metadata, unrelated to this path), but nothing
+    // carried it through to the stored record's tags.
+    const displayNameByConfigId = new Map<string, string | undefined>();
+    for (const [configId, config] of credoConfigs) {
+      const displayName =
+        (config.display as Array<Record<string, string>> | undefined)?.[0]?.name ??
+        ((config.credential_metadata as Record<string, unknown> | undefined)
+          ?.display as Array<Record<string, string>> | undefined)?.[0]?.name;
+      displayNameByConfigId.set(configId, displayName);
+    }
     // Tell the mdoc trust-anchor resolver which deployment to ask before
     // handing control to Credo. holder.requestCredentials() is what triggers
     // Mdoc.verify(), which is what invokes
@@ -360,7 +381,12 @@ export async function requestOid4VciCredentials(
         allCredentials = [...allCredentials, ...result.credentials];
       }
       for (const item of allCredentials) {
-        results.push({ path: 'credo', configId: item.credentialConfigurationId, record: item.record });
+        results.push({
+          path: 'credo',
+          configId: item.credentialConfigurationId,
+          displayName: displayNameByConfigId.get(item.credentialConfigurationId),
+          record: item.record,
+        });
       }
     } finally {
       clearCurrentIssuerBaseUrl();

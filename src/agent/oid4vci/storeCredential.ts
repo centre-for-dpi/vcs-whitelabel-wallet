@@ -84,7 +84,7 @@ export async function storeOid4VciCredential(
   }
 
   // Credo-managed path: dispatch by record type
-  const { record, configId } = result;
+  const { record, configId, displayName } = result;
   if (!record) return;
 
   const recordType = (record as { type?: string }).type;
@@ -114,10 +114,18 @@ export async function storeOid4VciCredential(
     // issuers (like walt.id's mDL catalog entry) are treated as jwk-capable by
     // Credo itself (OpenId4VciHolderService: supportsJwk includes cose_key), so
     // no separate binding path was needed here. This record is ready to
-    // persist as-is; unlike the SD-JWT/W3C branches above, mdoc has no
-    // sensible 'issuerName'/'credentialName' tag scheme of its own yet — add
-    // tags here if/when the mDL presentation UI needs to filter by them.
+    // persist as-is.
+    //
+    // issuerName/credentialName tags were missing entirely here — the offer
+    // screen shows the correct issuer/display name (it reads straight from
+    // the OID4VCI offer metadata), but nothing carried it into storage, so
+    // fromMdocRecord's tag-based lookup fell back to "Unknown Issuer" and a
+    // formatConfigId(docType)-derived name ("M Dl" instead of the operator's
+    // real "mDL v22"). Same tag scheme as the SD-JWT/W3C branches above.
     const stored = await agent.mdoc.store({ record: record as MdocRecord });
+    stored.setTag('issuerName', meta.issuerName);
+    stored.setTag('credentialName', displayName ?? formatConfigId(configId));
+    await agent.mdoc.update(stored);
     console.log('[oid4vci] stored MdocRecord id:', stored.id);
   } else {
     console.warn('[oid4vci] unknown record type, not stored:', recordType);

@@ -1,4 +1,5 @@
 import type { MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
+import { DateOnly } from '@animo-id/mdoc';
 import i18n from '../i18n';
 import { branding } from '../../branding.config';
 
@@ -73,6 +74,32 @@ export function getExpiryStatus(expiryDate: string | undefined): ExpiryStatus {
 /** Days remaining until expiry (negative if already expired). */
 export function daysUntilExpiry(expiryDate: string): number {
   return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Whether this credential's FORMAT supports selective disclosure — the
+ * "Selective disclosure" vs. "Full presentation" badge shown for a stored
+ * credential, not a record of what a specific past presentation actually
+ * disclosed.
+ *
+ * `entry.sdFields.length > 0` alone only measures the SD-JWT-specific
+ * mechanism (claims marked with an `_sd` disclosure hash) — it is
+ * correctly always `[]` for mdoc and w3c, per CredentialEntry.sdFields'
+ * own doc comment, because neither format uses SD-JWT disclosures. Using
+ * only that signal made every mdoc credential show "Full presentation"
+ * unconditionally, which is wrong: ISO 18013-5 mdoc selective disclosure is
+ * a STRUCTURAL property of the format, not an opt-in mechanism — the
+ * reader's DeviceRequest names exactly the elements it wants, and
+ * DeviceResponse.usingDeviceRequest (see signDeviceResponse.ts /
+ * presentMdoc.ts's filterByRequest) discloses only those, never the whole
+ * stored record. So "does this format support selective disclosure" is
+ * asked per-format: mdoc is always selective; sdjwt uses the sdFields
+ * signal (0 disclosures for a plain JWT masquerading as SD-JWT is a real
+ * "full presentation" case — see manual-jwt in storeCredential.ts); w3c has
+ * no selective mechanism here (no BBS+ support) so it stays "full".
+ */
+export function supportsSelectiveDisclosure(entry: Pick<CredentialEntry, 'format' | 'sdFields'>): boolean {
+  return entry.format === 'mdoc' || entry.sdFields.length > 0;
 }
 
 /**
@@ -389,10 +416,32 @@ export const fromMdocRecord = (record: MdocRecord): CredentialEntry => {
   let issuanceDate = new Date().toISOString();
   let expiryDate: string | undefined;
   try {
+    // mdoc.validityInfo is the MSO's OWN signature-validity window (how long
+    // this signed structure is considered fresh before the issuer expects a
+    // re-issuance/refresh) — it is NOT the document's real-world expiry.
+    // walt.id's issuer-api2 sets validUntil to a fixed default (confirmed
+    // empirically: signed 2026-08-24 -> validUntil 2027-08-24, exactly one
+    // year, with nothing in issuer2-profiles.conf configuring it) that has
+    // no relationship to the mDL's own `expiry_date` data element the
+    // operator actually entered (e.g. 2031-08-24 in that same test). Using
+    // validUntil as "the credential's expiry" showed a 1-year MSO-refresh
+    // date instead of the multi-year real expiry printed on the licence —
+    // confirmed by decoding a live-issued mDL's CBOR directly, not assumed.
+    // The `expiry_date` claim (ISO 18013-5 mandatory element) is the correct
+    // source when present; validUntil is only a fallback for a docType that
+    // happens not to carry expiry_date at all.
+    // expiry_date decodes to a DateOnly (CBOR tag 1004), not a plain Date —
+    // asDate() above already handles both (see its own doc comment); using
+    // `instanceof Date` directly here would silently miss every real mDL,
+    // since none of them carry expiry_date as a plain Date.
+    const claimExpiryDate = asDate(claims.expiry_date);
+    if (claimExpiryDate) {
+      expiryDate = claimExpiryDate.toISOString();
+    }
     const validity = mdoc.validityInfo as { signed?: Date; validUntil?: Date } | undefined;
     if (validity?.signed) issuanceDate = new Date(validity.signed).toISOString();
-    if (validity?.validUntil) expiryDate = new Date(validity.validUntil).toISOString();
-  } catch { /* validityInfo not always parseable — fall back to defaults above */ }
+    if (!expiryDate && validity?.validUntil) expiryDate = new Date(validity.validUntil).toISOString();
+  } catch { /* validityInfo/claims not always parseable — fall back to defaults above */ }
 
   return {
     id: record.id,
@@ -448,9 +497,32 @@ export const claimImageUri = (value: unknown): string | null => {
   return `data:${mime};base64,${global.btoa(binary)}`;
 };
 
-/** True when the value is a Date or an ISO date/date-time string. */
+/**
+ * True when the value is a Date, an @animo-id/mdoc DateOnly (CBOR tag 1004
+ * full-date — e.g. birth_date/issue_date/expiry_date on a real mDL), or an
+ * ISO date/date-time string.
+ *
+ * DateOnly wraps a real Date in `.date` but is NOT `instanceof Date` — it's
+ * its own class (node_modules/@animo-id/mdoc/dist/index.js: `var DateOnly =
+ * class _DateOnly { constructor(date) { this.date = ... } ... }`). Without
+ * this check, isPlainObject() sees "an object, not a Date, not bytes" and
+ * treats it as a generic keyed structure — confirmed live: claimShape(a
+ * real DateOnly) produced `{ kind: 'list', rows: [{ key: 'Date', value:
+ * '...' }] }` instead of a plain formatted date, i.e. every individual
+ * mdoc date field silently risked rendering as a one-row "Date: ..." list
+ * instead of a clean date string.
+ */
 const asDate = (value: unknown): Date | null => {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value instanceof DateOnly) {
+    // DateOnly's `.date` field is a real Date, set in its constructor
+    // (node_modules/@animo-id/mdoc/dist/index.js), but its own .d.ts marks
+    // it private — accessible at runtime, blocked at the type level. `value
+    // as unknown as { date: unknown }` (rather than DateOnly's own shape)
+    // sidesteps that without asserting a shape TS thinks overlaps DateOnly.
+    const d = (value as unknown as { date: unknown }).date;
+    return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+  }
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}([T ]|$)/.test(value)) {
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
@@ -517,10 +589,10 @@ export const formatClaimValue = (value: unknown): string => {
 };
 
 /**
- * A keyed data structure — a plain object OR a Map — but not a Date, a byte
- * string, or an array. All these satisfy `typeof x === 'object'` and each
- * needs different treatment, so every structural branch tests this rather
- * than typeof alone.
+ * A keyed data structure — a plain object OR a Map — but not a Date, a
+ * DateOnly, a byte string, or an array. All these satisfy
+ * `typeof x === 'object'` and each needs different treatment, so every
+ * structural branch tests this rather than typeof alone.
  *
  * Map is included because @animo-id/mdoc's CBOR decoder is configured with
  * `mapsAsObjects: false` (its own encoderDefaults), so every nested CBOR map
@@ -531,10 +603,16 @@ export const formatClaimValue = (value: unknown): string => {
  * mdoc field as an empty {} — confirmed by decoding a live-issued mDL's CBOR
  * and finding driving_privileges correctly shaped upstream, with the empty
  * render only reproducible client-side once its entries were real Maps.
+ *
+ * DateOnly is excluded for the same class of reason: it is not `instanceof
+ * Date`, so without this exclusion every mdoc full-date field (birth_date,
+ * issue_date, expiry_date, ...) rendered as a one-row list `{ Date:
+ * '<formatted date>' }` instead of a plain formatted date — confirmed live
+ * against the real @animo-id/mdoc DateOnly class, not assumed.
  */
 const isPlainObject = (v: unknown): v is Record<string, unknown> | Map<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
-  && !(v instanceof Date) && asBytes(v) === null;
+  && !(v instanceof Date) && !(v instanceof DateOnly) && asBytes(v) === null;
 
 /** Key/value pairs of a plain object OR a Map, uniformly. */
 const entriesOf = (v: Record<string, unknown> | Map<string, unknown>): [string, unknown][] =>

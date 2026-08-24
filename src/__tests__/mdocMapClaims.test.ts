@@ -1,4 +1,4 @@
-import { flattenMdocNamespaces, claimShape, formatClaimValue } from '../utils/credential';
+import { flattenMdocNamespaces, claimShape, formatClaimValue, supportsSelectiveDisclosure } from '../utils/credential';
 
 /**
  * @animo-id/mdoc's CBOR decoder is configured with `mapsAsObjects: false`
@@ -113,5 +113,23 @@ describe('claimShape on driving_privileges-shaped data (the reported bug)', () =
     expect(shape.kind).toBe('table');
     if (shape.kind !== 'table') return;
     expect(shape.rows).toEqual([['A', 'x'], ['B', 'y']]);
+  });
+});
+
+describe('supportsSelectiveDisclosure — the "Selective disclosure"/"Full presentation" badge', () => {
+  test('mdoc is always selective, regardless of sdFields (structural property of ISO 18013-5)', () => {
+    expect(supportsSelectiveDisclosure({ format: 'mdoc', sdFields: [] })).toBe(true);
+  });
+
+  test('sdjwt with real disclosures is selective', () => {
+    expect(supportsSelectiveDisclosure({ format: 'sdjwt', sdFields: ['given_name'] })).toBe(true);
+  });
+
+  test('sdjwt with zero disclosures (e.g. a plain JWT via manual-jwt) is NOT selective', () => {
+    expect(supportsSelectiveDisclosure({ format: 'sdjwt', sdFields: [] })).toBe(false);
+  });
+
+  test('w3c has no selective mechanism here and is never selective', () => {
+    expect(supportsSelectiveDisclosure({ format: 'w3c', sdFields: [] })).toBe(false);
   });
 });
