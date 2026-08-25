@@ -116,6 +116,43 @@ describe('claimShape on driving_privileges-shaped data (the reported bug)', () =
   });
 });
 
+describe('claim field ordering (reported: fields display in CBOR/JSON wire order, not the schema order)', () => {
+  test('table columns sort alphabetically by label, not by first-seen wire order', () => {
+    // Wire order deliberately reversed/scrambled relative to alphabetical —
+    // mirrors what a real issuer's CBOR serialization order looks like.
+    const drivingPrivileges = [
+      new Map<string, unknown>([
+        ['expiry_date', new Date('2031-08-24')],
+        ['vehicle_category_code', 'B'],
+        ['issue_date', new Date('2026-08-24')],
+      ]),
+    ];
+    const shape = claimShape(drivingPrivileges);
+    expect(shape.kind).toBe('table');
+    if (shape.kind !== 'table') return;
+    expect(shape.columns).toEqual(['Expiry Date', 'Issue Date', 'Vehicle Category Code']);
+  });
+
+  test('a later entry’s extra column is still included after sorting, not dropped', () => {
+    const value = [
+      new Map<string, unknown>([['zebra', 'z1']]),
+      new Map<string, unknown>([['zebra', 'z2'], ['apple', 'a1']]),
+    ];
+    const shape = claimShape(value);
+    expect(shape.kind).toBe('table');
+    if (shape.kind !== 'table') return;
+    expect(shape.columns).toEqual(['Apple', 'Zebra']);
+  });
+
+  test('list rows (a single nested object) sort alphabetically by label', () => {
+    const value = { zebra: 'z', apple: 'a', mango: 'm' };
+    const shape = claimShape(value);
+    expect(shape.kind).toBe('list');
+    if (shape.kind !== 'list') return;
+    expect(shape.rows.map((r) => r.key)).toEqual(['Apple', 'Mango', 'Zebra']);
+  });
+});
+
 describe('supportsSelectiveDisclosure — the "Selective disclosure"/"Full presentation" badge', () => {
   test('mdoc is always selective, regardless of sdFields (structural property of ISO 18013-5)', () => {
     expect(supportsSelectiveDisclosure({ format: 'mdoc', sdFields: [] })).toBe(true);

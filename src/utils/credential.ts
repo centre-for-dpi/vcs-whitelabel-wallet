@@ -205,8 +205,8 @@ export const fromSdJwtRecord = (record: SdJwtVcRecord): CredentialEntry => {
 
   // Also filter W3C VC meta-keys that appear after descending into credentialSubject
   const w3cMeta = new Set(['@context', 'type', 'id']);
-  const selectiveFields = Object.keys(claimsSource).filter(
-    (k) => !reserved.has(k) && !w3cMeta.has(k),
+  const selectiveFields = sortClaimKeys(
+    Object.keys(claimsSource).filter((k) => !reserved.has(k) && !w3cMeta.has(k)),
   );
 
   // Claims that are NOT direct keys of the JWT payload are selectively disclosable
@@ -300,7 +300,7 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
   // W3cCredentialSubject stores custom attributes under .claims
   const claims: Record<string, unknown> = { ...(rawSubject?.claims ?? {}) };
 
-  const selectiveFields = Object.keys(claims);
+  const selectiveFields = sortClaimKeys(Object.keys(claims));
 
   return {
     id: record.id,
@@ -341,7 +341,7 @@ export const fromW3cV2Record = (record: W3cV2CredentialRecord): CredentialEntry 
   const claims: Record<string, unknown> = { ...(subject as object) };
 
   const W3C_RESERVED = new Set(['id', 'type']);
-  const selectiveFields = Object.keys(claims).filter((k) => !W3C_RESERVED.has(k));
+  const selectiveFields = sortClaimKeys(Object.keys(claims).filter((k) => !W3C_RESERVED.has(k)));
 
   return {
     id: record.id,
@@ -451,7 +451,7 @@ export const fromMdocRecord = (record: MdocRecord): CredentialEntry => {
     issuanceDate,
     expiryDate,
     claims,
-    selectiveFields: Object.keys(claims),
+    selectiveFields: sortClaimKeys(Object.keys(claims)),
     sdFields: [],
     rawRecord: record,
   };
@@ -459,6 +459,27 @@ export const fromMdocRecord = (record: MdocRecord): CredentialEntry => {
 
 export const formatClaimKey = (key: string): string =>
   key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/**
+ * Sorts claim keys alphabetically by their DISPLAYED label, not the raw
+ * key — "birth_date" and "birthDate" should sort next to each other the way
+ * they read on screen, not by underscore/casing accidents in the raw key.
+ *
+ * Every claim source here — mdoc (raw CBOR map/Map entry order, whatever the
+ * issuer happened to serialize), SD-JWT (payload order for direct claims,
+ * separately reconstructed disclosure order for _sd claims — two different
+ * orderings stitched together, not one), W3C (credentialSubject's own key
+ * order) — carries a "wire order" that reflects how the credential was
+ * encoded, not a normative schema order; none of these formats guarantee
+ * field order matches any published schema. Confirmed by user report: same
+ * apparent scrambling on both mdoc and SD-JWT credentials, which only makes
+ * sense as a shared "we show wire order" behavior, not a per-format parsing
+ * bug in either one. Alphabetical-by-label is the chosen fix: applied once
+ * here so every `from*Record` constructor gets it uniformly, rather than
+ * each one sorting (or forgetting to sort) selectiveFields on its own.
+ */
+const sortClaimKeys = (keys: string[]): string[] =>
+  [...keys].sort((a, b) => formatClaimKey(a).localeCompare(formatClaimKey(b)));
 
 /**
  * Byte-valued claims (ISO 18013-5 bstr elements: portrait,
@@ -647,23 +668,30 @@ export type ClaimShape =
 
 export const claimShape = (value: unknown): ClaimShape => {
   if (Array.isArray(value) && value.length > 0 && value.every(isPlainObject)) {
+    // Union of keys, THEN alphabetized by label — same wire-order problem as
+    // selectiveFields (see sortClaimKeys' doc comment): first-seen order
+    // here still reflects each entry's raw CBOR/JSON key order, not a
+    // schema. Sorted after union so a later entry's extra column is still
+    // included, just not pinned to the end.
     const columns: string[] = [];
     for (const entry of value as (Record<string, unknown> | Map<string, unknown>)[]) {
       for (const k of keysOf(entry)) if (!columns.includes(k)) columns.push(k);
     }
+    const sortedColumns = sortClaimKeys(columns);
     const rows = (value as (Record<string, unknown> | Map<string, unknown>)[]).map((entry) =>
-      columns.map((c) => {
+      sortedColumns.map((c) => {
         const cell = entry instanceof Map ? entry.get(c) : entry[c];
         return cell === null || cell === undefined || cell === ''
           ? '—'
           : formatClaimValue(cell);
       }),
     );
-    return { kind: 'table', columns: columns.map(formatClaimKey), rows };
+    return { kind: 'table', columns: sortedColumns.map(formatClaimKey), rows };
   }
 
   if (isPlainObject(value)) {
     const rows = objectEntries(value)
+      .sort(([a], [b]) => formatClaimKey(a).localeCompare(formatClaimKey(b)))
       .map(([k, v]) => ({ key: formatClaimKey(k), value: formatClaimValue(v) }));
     if (rows.length > 0) return { kind: 'list', rows };
   }
