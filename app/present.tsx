@@ -19,7 +19,7 @@ import i18n from '../src/i18n';
 import { normalizeAuthorizationRequestUrl, isHttpOid4VpRequest, resolveHttpOid4VpRequest } from '../src/agent/oid4vp/normalizeRequest';
 import { selectCredentialsForRequest } from '../src/agent/oid4vp/selectCredentials';
 import { presentCredentials } from '../src/agent/oid4vp/presentCredentials';
-import { fromSdJwtRecord, getSdJwtCompact, getSdJwtPrettyClaims } from '../src/utils/credential';
+import { fromSdJwtRecord, formatClaimKey, getSdJwtCompact, getSdJwtPrettyClaims, sortClaimKeys } from '../src/utils/credential';
 import { addPresentation } from '../src/utils/presentationHistory';
 
 type Step = 'resolving' | 'confirm' | 'qr' | 'presenting' | 'done' | 'error';
@@ -147,12 +147,21 @@ export default function Present() {
         const selected = await selectCredentialsForRequest(agent, resolved);
 
         // PEX: extract the first matched credential and compute disclosed / private split
+        //
+        // beingShared/stayingPrivate are sorted with the same sortClaimKeys
+        // used everywhere a credential's fields are listed (see its own doc
+        // comment in credential.ts) — requestedFields itself carries the
+        // VERIFIER's request order, a third source of "wire order" besides
+        // mdoc/SD-JWT decoding order, and stayingPrivate would otherwise
+        // inherit credEntry.selectiveFields' order by construction. Without
+        // this, the same field could read in a different order here than on
+        // the credential detail screen, which was the inconsistency reported.
         if (selected.presentationExchange) {
           const firstEntry = Object.values(selected.presentationExchange.credentials)[0]?.[0];
           if (firstEntry) {
             const credEntry = fromSdJwtRecord(firstEntry.credentialRecord);
-            const beingShared = requestedFields.filter((f) => credEntry.selectiveFields.includes(f));
-            const stayingPrivate = credEntry.selectiveFields.filter((f) => !requestedFields.includes(f));
+            const beingShared = sortClaimKeys(requestedFields.filter((f) => credEntry.selectiveFields.includes(f)));
+            const stayingPrivate = sortClaimKeys(credEntry.selectiveFields.filter((f) => !requestedFields.includes(f)));
             setDisclosureInfo({ credentialType: credEntry.type, beingShared, stayingPrivate });
           }
         }
@@ -161,7 +170,7 @@ export default function Present() {
         if (selected.dcql) {
           setDisclosureInfo({
             credentialType: requestedTypes[0] ?? i18n.t('present.credential_fallback'),
-            beingShared: requestedFields,
+            beingShared: sortClaimKeys(requestedFields),
             stayingPrivate: [],
           });
         }
@@ -301,7 +310,7 @@ export default function Present() {
                           <Text style={styles.fieldIcon}>✓</Text>
                         )}
                         <Text style={[styles.fieldName, !isOn && styles.fieldNameDeselected]}>
-                          {field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                          {formatClaimKey(field)}
                         </Text>
                         {isOptional && (
                           <View style={styles.optionalBadge}>
@@ -322,7 +331,7 @@ export default function Present() {
                     <View key={field} style={styles.fieldRow}>
                       <Text style={styles.fieldIcon}>🔒</Text>
                       <Text style={[styles.fieldName, styles.fieldNamePrivate]}>
-                        {field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                        {formatClaimKey(field)}
                       </Text>
                     </View>
                   ))}

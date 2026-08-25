@@ -477,8 +477,14 @@ export const formatClaimKey = (key: string): string =>
  * bug in either one. Alphabetical-by-label is the chosen fix: applied once
  * here so every `from*Record` constructor gets it uniformly, rather than
  * each one sorting (or forgetting to sort) selectiveFields on its own.
+ *
+ * Exported (not module-private) so app/present.tsx's disclosure breakdown —
+ * a separate screen with its own field list, built from requestedFields (the
+ * verifier's own field order in its request, a third wire-order source) —
+ * can apply the identical rule. Consistency was the explicit ask: a field
+ * should sort the same way regardless of which screen is showing it.
  */
-const sortClaimKeys = (keys: string[]): string[] =>
+export const sortClaimKeys = (keys: string[]): string[] =>
   [...keys].sort((a, b) => formatClaimKey(a).localeCompare(formatClaimKey(b)));
 
 /**
