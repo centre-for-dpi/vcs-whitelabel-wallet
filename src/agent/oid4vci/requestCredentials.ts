@@ -63,6 +63,33 @@ export type ManualMdocResult = {
   docType: string;
 };
 
+/**
+ * Credential obtained via manual POST for ldp_vc / jwt_vc_json-ld on legacy
+ * endpoints — real JSON-LD, NOT a compact JWT.
+ *
+ * Before this type existed, ldp_vc/jwt_vc_json-ld fell into the same
+ * `else if (legacy)` branch as jwt_vc_json and was pushed as a
+ * ManualJwtResult, which storeCredential.ts always persists as an
+ * SdJwtVcRecord (the comment on ManualJwtResult itself only ever
+ * anticipated 'jwt_vc_json'/'vc+sd-jwt' — genuinely JSON-LD credentials were
+ * never meant to go through it). @credo-ts/openid4vc's own format→ClaimFormat
+ * mapping (shared/utils.mjs) treats jwt_vc_json as ClaimFormat.JwtVp (a
+ * compact JWT — correctly handled by ManualJwtResult) but ldp_vc as
+ * ClaimFormat.LdpVp (a full JSON-LD document with an embedded `proof`, never
+ * a JWT string) — confirmed reading that mapping directly, not assumed.
+ * Storing an LdpVp response as an SdJwtVcRecord made the wallet display it
+ * with a "Selective disclosure" badge (supportsSelectiveDisclosure keys off
+ * entry.format === 'sdjwt', not the real credential shape) even though W3C
+ * JSON-LD here has no selective-disclosure mechanism (no BBS+) at all — a
+ * "Full presentation"-only format shown as the opposite.
+ */
+export type ManualW3cLdResult = {
+  path: 'manual-w3c-ld';
+  configId: string;
+  displayName?: string;
+  credential: Record<string, unknown>; // full JSON-LD VC document, incl. `proof`
+};
+
 /** Credential obtained via Credo's standard requestCredentials path. */
 export type CredoResult = {
   path: 'credo';
@@ -71,7 +98,12 @@ export type CredoResult = {
   record: unknown;
 };
 
-export type CredentialResult = DcSdJwtResult | ManualJwtResult | ManualMdocResult | CredoResult;
+export type CredentialResult =
+  | DcSdJwtResult
+  | ManualJwtResult
+  | ManualMdocResult
+  | ManualW3cLdResult
+  | CredoResult;
 
 /**
  * Returns true when the issuer is known to produce non-conformant credential responses
@@ -310,7 +342,25 @@ export async function requestOid4VciCredentials(
       if (data.transaction_id) {
         throw new Error('El emisor respondió con una credencial diferida. Inténtalo de nuevo en unos segundos.');
       }
-      const compactJwt = (data.credential ?? (data.credentials as string[] | undefined)?.[0]) as string | undefined;
+      const rawCredential = data.credential ?? (data.credentials as unknown[] | undefined)?.[0];
+
+      // ldp_vc / jwt_vc_json-ld: real JSON-LD, a full VC document with an
+      // embedded `proof` — NEVER a compact JWT string. Routing it through
+      // ManualJwtResult (the jwt_vc_json/vc+sd-jwt path below) stored it as
+      // an SdJwtVcRecord and made the UI show a "Selective disclosure"
+      // badge for a format that has no such mechanism. See ManualW3cLdResult's
+      // doc comment for the full trace.
+      if ((format === 'ldp_vc' || format === 'jwt_vc_json-ld') && rawCredential && typeof rawCredential === 'object') {
+        results.push({
+          path: 'manual-w3c-ld',
+          configId,
+          displayName,
+          credential: rawCredential as Record<string, unknown>,
+        });
+        continue;
+      }
+
+      const compactJwt = rawCredential as string | undefined;
       if (!compactJwt) throw new Error('El emisor no retornó una credencial en la respuesta.');
       logJwtStructure('[oid4vci]', compactJwt);
       results.push({ path: 'manual-jwt', format, configId, displayName, compactJwt, keyId, credentialType });

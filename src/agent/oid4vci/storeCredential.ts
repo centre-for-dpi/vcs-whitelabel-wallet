@@ -1,4 +1,5 @@
 import { Mdoc, MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRecord } from '@credo-ts/core';
+import type { W3cJsonCredential } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { CredentialResult } from './requestCredentials';
 
@@ -26,10 +27,19 @@ export const formatConfigId = (id: string): string => {
  * to avoid collision with SdJwtVcRecord's built-in 'vct' tag, which is derived from
  * prettyClaims.vct and returns undefined for W3C-wrapped walt.id credentials.
  *
- * manual-jwt (e.g. jwt_vc_json from legacy endpoints) is stored as SdJwtVcRecord.
- * The SD-JWT module treats a regular JWT as an SD-JWT with 0 disclosures; prettyClaims
- * returns the full payload, and fromSdJwtRecord's WRAPPER_KEYS flattening handles the
- * W3C vc wrapper. No kmsKeyId is set since jwt_vc_json has no holder binding.
+ * manual-jwt (jwt_vc_json / vc+sd-jwt from legacy endpoints) is stored as
+ * SdJwtVcRecord. The SD-JWT module treats a regular JWT as an SD-JWT with 0
+ * disclosures; prettyClaims returns the full payload, and fromSdJwtRecord's
+ * WRAPPER_KEYS flattening handles the W3C vc wrapper. No kmsKeyId is set
+ * since jwt_vc_json has no holder binding.
+ *
+ * manual-w3c-ld (ldp_vc / jwt_vc_json-ld from legacy endpoints) is its own
+ * branch, NOT routed through manual-jwt — it's real JSON-LD (a full document
+ * with an embedded `proof`, never a compact JWT string) and is stored as a
+ * W3cCredentialRecord instead. See ManualW3cLdResult's doc comment
+ * (requestCredentials.ts) for why conflating the two broke the "Selective
+ * disclosure" vs. "Full presentation" badge for every JSON-LD credential
+ * from a legacy issuer.
  */
 export async function storeOid4VciCredential(
   agent: WalletAgent,
@@ -80,6 +90,34 @@ export async function storeOid4VciCredential(
     stored.setTag('credentialName', displayName ?? formatConfigId(configId));
     await agent.mdoc.update(stored);
     console.log('[oid4vci] stored manual-mdoc id:', stored.id, 'docType:', docType);
+    return;
+  }
+
+  if (result.path === 'manual-w3c-ld') {
+    // ldp_vc / jwt_vc_json-ld (real JSON-LD, embedded `proof`) from a legacy
+    // endpoint's manual POST path — see requestCredentials.ts's
+    // ManualW3cLdResult doc comment for why this needs its own branch
+    // instead of falling into manual-jwt/SdJwtVcRecord like it used to
+    // (that made every JSON-LD credential show a "Selective disclosure"
+    // badge it has no mechanism to back up).
+    //
+    // W3cCredentialRecord's constructor accepts the full JSON-LD document
+    // directly as `credentialInstances[].credential` (string | W3cJsonCredential
+    // — see its own .d.ts); getTags() derives issuerId/subjectIds/claimFormat/
+    // etc. from it automatically. Unlike SdJwtVcRecord/MdocRecord,
+    // CustomW3cCredentialTags only declares `expandedTypes` — there's no
+    // issuerName/credentialName custom tag to set here, which matches
+    // fromW3cRecord (src/utils/credential.ts): it reads issuer/type straight
+    // from the JSON-LD (vc.issuer, vc.type), never from tags, for both this
+    // path and the Credo-managed W3C path below. configId/displayName are
+    // accepted on ManualW3cLdResult for symmetry with the other manual-*
+    // result types and future use, but aren't consumed here today.
+    const { credential } = result;
+    const record = new W3cCredentialRecord({
+      credentialInstances: [{ credential: credential as unknown as W3cJsonCredential }],
+    });
+    const stored = await agent.w3cCredentials.store({ record });
+    console.log('[oid4vci] stored manual-w3c-ld id:', stored.id);
     return;
   }
 
