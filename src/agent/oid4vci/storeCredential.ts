@@ -2,6 +2,7 @@ import { Mdoc, MdocRecord, SdJwtVcRecord, W3cCredentialRecord, W3cV2CredentialRe
 import type { W3cJsonCredential } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { CredentialResult } from './requestCredentials';
+import { setCurrentIssuerBaseUrl, clearCurrentIssuerBaseUrl } from '../mdocTrustAnchors';
 
 export type StorageMeta = {
   issuerName: string;
@@ -82,9 +83,37 @@ export async function storeOid4VciCredential(
     // from it directly (mirrors MdocRecord.fromMdoc, but deviceKeyId must be set
     // explicitly since this credential never went through Credo's own requestCredentials/
     // credentialBindingResolver, which is what populates it in the 'credo' path below).
-    const { credential, keyId, docType, configId, displayName } = result;
+    const { credential, keyId, docType, configId, displayName, issuerUrl } = result;
     const mdoc = Mdoc.fromBase64Url(credential, docType);
     mdoc.deviceKeyId = keyId;
+
+    // Verification of STRUCTURAL INTEGRITY + ISSUER TRUST in a single call —
+    // mdoc.verify() does both: verifyIssuerSignature confirms the COSE_Sign1
+    // signature checks out mathematically (which proves that Inji's envelope
+    // correction in requestCredentials.ts, when it applied, did not corrupt
+    // the signed bytes), and validates that chain against trustedCertificates.
+    // Register the issuer via setCurrentIssuerBaseUrl BEFORE calling verify()
+    // — the SAME mechanism the Credo-managed path already uses (see
+    // requestCredentials.ts) — so this manual-mdoc path, which used to skip
+    // trust verification entirely for EVERY issuer (walt.id included, not
+    // just Inji), now goes through it too. options.trustedCertificates is
+    // deliberately omitted: letting x509ModuleConfig.getTrustedCertificatesForVerification
+    // (registered in setup.ts) resolve the fetched+static union with its own
+    // stale-cache fallback is preferable to reimplementing a weaker version
+    // of that here.
+    setCurrentIssuerBaseUrl(issuerUrl);
+    let verification: { isValid: boolean; error?: string };
+    try {
+      verification = await mdoc.verify(agent.context, {});
+    } finally {
+      clearCurrentIssuerBaseUrl();
+    }
+    if (!verification.isValid) {
+      throw new Error(
+        `La credencial mdoc no pasó la verificación de firma/confianza: ${verification.error ?? 'motivo desconocido'}`,
+      );
+    }
+
     const stored = await agent.mdoc.store({ record: MdocRecord.fromMdoc(mdoc) });
     stored.setTag('issuerName', meta.issuerName);
     stored.setTag('credentialName', displayName ?? formatConfigId(configId));

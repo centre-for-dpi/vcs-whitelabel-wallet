@@ -9,6 +9,12 @@
 // inside the factory throws "ReferenceError: Cannot access ... before
 // initialization" because the class declaration hasn't run yet when the
 // hoisted factory executes.
+//
+// MdocRecord.fromMdoc is added here (it didn't exist on this mock before the
+// manual-mdoc trust-verification feature): storeCredential.ts's manual-mdoc
+// branch now calls it after mdoc.verify() succeeds, mirroring the real
+// MdocRecord.fromMdoc (confirmed in node_modules/@credo-ts/core/build/modules/
+// mdoc/repository/MdocRecord.mjs).
 jest.mock('@credo-ts/core', () => ({
   Mdoc: { fromBase64Url: jest.fn() },
   MdocRecord: class {
@@ -16,6 +22,9 @@ jest.mock('@credo-ts/core', () => ({
     id = 'mdoc-record-id';
     setTag(key: string, value: unknown) {
       this.tags[key] = value;
+    }
+    static fromMdoc(_mdoc: unknown) {
+      return new this();
     }
   },
   SdJwtVcRecord: class {},
@@ -29,7 +38,17 @@ jest.mock('@credo-ts/core', () => ({
   W3cV2CredentialRecord: class {},
 }));
 
-import { MdocRecord, W3cCredentialRecord } from '@credo-ts/core';
+// storeCredential.ts's manual-mdoc branch now calls setCurrentIssuerBaseUrl/
+// clearCurrentIssuerBaseUrl (mdocTrustAnchors.ts) around mdoc.verify() — this
+// mock is new; the file never called anything from mdocTrustAnchors.ts before
+// this feature.
+jest.mock('../agent/mdocTrustAnchors', () => ({
+  setCurrentIssuerBaseUrl: jest.fn(),
+  clearCurrentIssuerBaseUrl: jest.fn(),
+}));
+
+import { Mdoc, MdocRecord, W3cCredentialRecord } from '@credo-ts/core';
+import { setCurrentIssuerBaseUrl } from '../agent/mdocTrustAnchors';
 import { storeOid4VciCredential, formatConfigId } from '../agent/oid4vci/storeCredential';
 import type { CredentialResult } from '../agent/oid4vci/requestCredentials';
 import type { WalletAgent } from '../agent/setup';
@@ -187,5 +206,65 @@ describe('storeOid4VciCredential — manual-w3c-ld path (ldp_vc/jwt_vc_json-ld)'
 
     expect(sdJwtStore).not.toHaveBeenCalled();
     expect(w3cStore).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The gap this file guards: the manual-mdoc path (Inji Certify and, until
+ * now, every OTHER legacy-endpoint mdoc issuer including walt.id when routed
+ * through this branch) never called mdoc.verify() at all — a credential's
+ * COSE_Sign1 issuer signature and its certificate chain's trust anchor were
+ * never checked before the record was persisted. This closes that gap by
+ * reusing the SAME mechanism (setCurrentIssuerBaseUrl / the
+ * X509ModuleConfig.getTrustedCertificatesForVerification resolver already
+ * registered in setup.ts) that the Credo-managed path already relies on,
+ * rather than reimplementing a parallel, weaker version of trust resolution
+ * here. No explicit trustedCertificates are ever passed to verify() — see
+ * requestCredentials.ts's detectAndUnwrapMdocEnvelope doc comment and this
+ * task's brief for why passing `[]` explicitly would be a silent foot-gun
+ * (Mdoc.verify treats an explicit array, even empty, as authoritative and
+ * skips the resolver entirely).
+ */
+describe('storeOid4VciCredential — manual-mdoc path: envelope + trust verification', () => {
+  function makeAgentAndMdoc(verifyResult: { isValid: boolean; error?: string }) {
+    const verify = jest.fn().mockResolvedValue(verifyResult);
+    const fakeMdoc = { deviceKeyId: undefined as string | undefined, verify };
+    (Mdoc.fromBase64Url as jest.Mock).mockReturnValue(fakeMdoc);
+    const store = jest.fn().mockResolvedValue(new FakeMdocRecord());
+    const update = jest.fn().mockResolvedValue(undefined);
+    const agent = { mdoc: { store, update }, context: {} } as unknown as WalletAgent;
+    return { agent, verify, store };
+  }
+
+  test('rejects and does NOT store when mdoc.verify() reports invalid', async () => {
+    const { agent, store } = makeAgentAndMdoc({ isValid: false, error: 'signature mismatch' });
+    const result: CredentialResult = {
+      path: 'manual-mdoc',
+      configId: 'org.iso.18013.5.1.mDL',
+      credential: 'AAAA',
+      keyId: 'k1',
+      docType: 'org.iso.18013.5.1.mDL',
+      issuerUrl: 'https://issuer.example',
+    };
+    await expect(storeOid4VciCredential(agent, result, { issuerName: 'INTRANT' })).rejects.toThrow();
+    expect(store).not.toHaveBeenCalled();
+  });
+
+  test('stores when mdoc.verify() reports valid, having registered the issuer via setCurrentIssuerBaseUrl and called verify with NO explicit trustedCertificates', async () => {
+    const { agent, verify, store } = makeAgentAndMdoc({ isValid: true });
+    const result: CredentialResult = {
+      path: 'manual-mdoc',
+      configId: 'org.iso.18013.5.1.mDL',
+      credential: 'AAAA',
+      keyId: 'k1',
+      docType: 'org.iso.18013.5.1.mDL',
+      issuerUrl: 'https://issuer.example',
+    };
+    await storeOid4VciCredential(agent, result, { issuerName: 'INTRANT' });
+    expect(setCurrentIssuerBaseUrl).toHaveBeenCalledWith('https://issuer.example');
+    expect(store).toHaveBeenCalledTimes(1);
+    // No explicit trustedCertificates — lets the resolver ALREADY REGISTERED
+    // in setup.ts resolve them (fetched+static union, stale-cache fallback).
+    expect(verify).toHaveBeenCalledWith(agent.context, {});
   });
 });

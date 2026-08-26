@@ -3,6 +3,7 @@ import type { WalletAgent } from '../setup';
 import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
 import { credentialBindingResolver } from '../credentialBinding';
 import { setCurrentIssuerBaseUrl, clearCurrentIssuerBaseUrl } from '../mdocTrustAnchors';
+import { cborDecode, cborEncode } from '@animo-id/mdoc';
 
 /* eslint-disable no-console */
 const log = __DEV__ ? console.log.bind(console) : () => {};
@@ -49,10 +50,70 @@ export type ManualJwtResult = {
 };
 
 /**
+ * Detects and corrects Inji Certify's non-standard mdoc response shape.
+ *
+ * Inji Certify v0.14.0's MDocCredential.addProof wraps the already-signed
+ * IssuerSigned map inside an extra {docType, issuerSigned} container — the
+ * shape of a DeviceResponse Document, not a standalone credential. Credo/
+ * @animo-id/mdoc expects the IssuerSigned map directly. Confirmed in the
+ * 2026-08-25 validation spike: stripping this outer container makes the
+ * same credential parse correctly.
+ *
+ * Only the OUTER container is discarded — the inner issuerSigned VALUE is
+ * re-encoded as its own top-level CBOR item via @animo-id/mdoc's own
+ * cborEncode (which is cbor-x under the hood — see its DataItem doc
+ * comment about eager encoding). This does NOT guarantee byte-identical
+ * output to what a hypothetical unwrapped response would have been (map
+ * key ordering could differ), but the COSE_Sign1 signature inside
+ * issuerAuth is an opaque byte string that travels through untouched —
+ * the post-extraction integrity check in storeCredential.ts (via
+ * mdoc.verify()) is what actually confirms nothing inside issuerSigned
+ * was corrupted, not an assumption made here.
+ *
+ * Detection is on the actual decoded shape of the bytes received, never on
+ * an assumption of which DPG produced them: a walt.id credential (no
+ * wrapper) passes through completely unmodified, byte-for-byte.
+ *
+ * IMPORTANT: @animo-id/mdoc's cborDecode returns a real JS Map for a CBOR
+ * map (confirmed empirically against both the Inji-wrapped and walt.id
+ * fixtures in src/__tests__/fixtures before writing this) — NOT a plain
+ * object. `'key' in decoded` / `decoded.key` are plain-object idioms that
+ * silently no-op against a Map, so detection uses Map.has()/get().
+ */
+export function detectAndUnwrapMdocEnvelope(base64Url: string): { base64Url: string; wasWrapped: boolean } {
+  const bytes = TypedArrayEncoder.fromBase64(base64Url);
+  let decoded: unknown;
+  try {
+    decoded = cborDecode(bytes);
+  } catch {
+    return { base64Url, wasWrapped: false }; // not decodable — pass through, let downstream parsing surface the real error
+  }
+
+  if (
+    decoded instanceof Map &&
+    decoded.has('issuerSigned') &&
+    decoded.has('docType') &&
+    !decoded.has('nameSpaces')
+  ) {
+    const inner = decoded.get('issuerSigned');
+    const reEncoded = cborEncode(inner);
+    return { base64Url: TypedArrayEncoder.toBase64URL(reEncoded), wasWrapped: true };
+  }
+
+  return { base64Url, wasWrapped: false };
+}
+
+/**
  * Credential obtained via manual POST for mso_mdoc on legacy endpoints.
  * Unlike ManualJwtResult, the credential endpoint returns raw base64url-encoded
  * IssuerSigned CBOR (ISO/IEC 18013-5), not a compact JWT — it must not be parsed
  * as one (storeCredential.ts builds an Mdoc/MdocRecord from this instead).
+ *
+ * issuerUrl carries the OID4VCI `credential_issuer` this credential came from,
+ * so storeCredential.ts can call setCurrentIssuerBaseUrl (mdocTrustAnchors.ts)
+ * at the right moment before verifying trust — without adding a new parameter
+ * to storeOid4VciCredential's public signature (its one real call site,
+ * app/receive.tsx, has no URL in its offerInfo state to pass one).
  */
 export type ManualMdocResult = {
   path: 'manual-mdoc';
@@ -61,6 +122,7 @@ export type ManualMdocResult = {
   credential: string; // base64url IssuerSigned CBOR
   keyId: string;
   docType: string;
+  issuerUrl: string;
 };
 
 /**
@@ -303,10 +365,15 @@ export async function requestOid4VciCredentials(
       if (data.transaction_id) {
         throw new Error('El emisor respondió con una credencial diferida. Inténtalo de nuevo en unos segundos.');
       }
-      const credential = (data.credential ?? (data.credentials as string[] | undefined)?.[0]) as string | undefined;
-      if (!credential) throw new Error('El emisor no retornó una credencial en la respuesta.');
+      const rawCredential = (data.credential ?? (data.credentials as string[] | undefined)?.[0]) as string | undefined;
+      if (!rawCredential) throw new Error('El emisor no retornó una credencial en la respuesta.');
+
+      const { base64Url: credential, wasWrapped } = detectAndUnwrapMdocEnvelope(rawCredential);
+      if (wasWrapped) {
+        log('[oid4vci] mso_mdoc credential was wrapped in {docType, issuerSigned} — unwrapped');
+      }
       log('[oid4vci] mso_mdoc credential bytes (base64url):', credential.length);
-      results.push({ path: 'manual-mdoc', configId, displayName, credential, keyId, docType });
+      results.push({ path: 'manual-mdoc', configId, displayName, credential, keyId, docType, issuerUrl });
 
     } else if (legacy) {
       // ── Other formats on legacy endpoints: manual POST ─────────────────────────
