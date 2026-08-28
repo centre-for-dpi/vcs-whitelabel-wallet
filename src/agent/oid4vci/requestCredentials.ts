@@ -50,7 +50,85 @@ export type ManualJwtResult = {
 };
 
 /**
- * Detects and corrects Inji Certify's non-standard mdoc response shape.
+ * Duck-types @animo-id/mdoc's own `Sign1`/`IssuerAuth` class shape (both
+ * exported only as instance types, not as a runtime class this file can
+ * `instanceof`-check across the mocked-vs-real module boundary tests rely
+ * on — see this file's jest.mock comments). cbor-x (this library's CBOR
+ * backend) registers a static extension for CBOR tag 18
+ * (`_Sign1.tag = 18`, confirmed by reading node_modules/@animo-id/mdoc/dist/
+ * index.mjs directly) that auto-parses a tag-18 COSE_Sign1 into a `Sign1`
+ * instance with named properties — NOT the bare 4-element array
+ * `IssuerAuth`'s constructor expects to spread.
+ */
+function isParsedSign1(
+  value: unknown,
+): value is { encodedProtectedHeaders: unknown; unprotectedHeaders: unknown; payload: unknown; signature: unknown } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'encodedProtectedHeaders' in value &&
+    'unprotectedHeaders' in value &&
+    'payload' in value &&
+    'signature' in value
+  );
+}
+
+/**
+ * Unwraps issuerSigned.issuerAuth from cbor-x's auto-parsed Sign1 shape back
+ * to the bare 4-element COSE_Sign1 array @animo-id/mdoc's own
+ * parseIssuerAuthElement expects, when present; returns the same Map
+ * unmodified otherwise.
+ *
+ * Inji Certify v0.14.0 encodes issuerAuth as a properly tag-18-wrapped
+ * COSE_Sign1 — technically correct per the COSE spec (RFC 8152 §4.2: a
+ * COSE_Sign1 structure "MAY" carry tag 18). walt.id's mdoc issuer omits the
+ * tag, encoding issuerAuth as a bare 4-element array instead — confirmed by
+ * decoding both a real Inji credential (tag 18) and the walt.id test
+ * fixture (bare array) side by side. cbor-x's registered tag-18 extension
+ * (Sign1.tag = 18) auto-parses Inji's form into a `Sign1` INSTANCE with
+ * named properties (encodedProtectedHeaders/unprotectedHeaders/payload/
+ * signature — confirmed empirically: Node against a real captured Inji
+ * credential prints a `_Sign1 {...}` instance, not a plain array or a
+ * generic {value,tag} wrapper, contrary to this fix's first draft). But
+ * @animo-id/mdoc's parseIssuerAuthElement unconditionally does
+ * `new IssuerAuth(...rawIssuerAuth)` — an array spread assuming the
+ * bare-array (walt.id) shape. A class instance has no iterator, so the
+ * spread throws "TypeError: iterator method is not callable" (reproduced
+ * live end-to-end: a real mDL issued by Inji Certify, once the server-side
+ * pipeline was fully fixed through several earlier rounds, failed at
+ * exactly this point on-device). This is the second Inji-specific
+ * non-conformance detectAndUnwrapMdocEnvelope corrects, alongside the
+ * {docType, issuerSigned} envelope below — the two are independent bugs
+ * that both happened to surface in the same function's problem space, not
+ * one bug with two symptoms: a credential can have either, neither, or (as
+ * observed live) both at once.
+ *
+ * The rebuilt array mirrors Sign1.getContentForEncoding() exactly
+ * ([encodedProtectedHeaders, unprotectedHeaders, payload, signature] —
+ * confirmed by reading that method directly), which is also the shape
+ * Sign1's OWN constructor takes positionally — so re-spreading this array
+ * into `new IssuerAuth(...)` reconstructs an equivalent instance. Every
+ * byte (protected header bytes, unprotected header map, payload bytes,
+ * signature bytes) is copied through untouched; only the tag-18 auto-parse
+ * is undone. The post-extraction integrity check in storeCredential.ts (via
+ * mdoc.verify()) is what actually confirms nothing inside issuerAuth was
+ * corrupted, not an assumption made here.
+ */
+function unwrapIssuerAuthTag(issuerSigned: Map<string, unknown>): Map<string, unknown> {
+  const rawIssuerAuth = issuerSigned.get('issuerAuth');
+  if (!isParsedSign1(rawIssuerAuth)) return issuerSigned;
+  const out = new Map(issuerSigned);
+  out.set('issuerAuth', [
+    rawIssuerAuth.encodedProtectedHeaders,
+    rawIssuerAuth.unprotectedHeaders,
+    rawIssuerAuth.payload,
+    rawIssuerAuth.signature,
+  ]);
+  return out;
+}
+
+/**
+ * Detects and corrects Inji Certify's non-standard mdoc response shapes.
  *
  * Inji Certify v0.14.0's MDocCredential.addProof wraps the already-signed
  * IssuerSigned map inside an extra {docType, issuerSigned} container — the
@@ -70,9 +148,16 @@ export type ManualJwtResult = {
  * mdoc.verify()) is what actually confirms nothing inside issuerSigned
  * was corrupted, not an assumption made here.
  *
+ * unwrapIssuerAuthTag runs on issuerSigned in BOTH branches below (wrapped
+ * and not) — the {docType, issuerSigned} envelope and the tag-18 issuerAuth
+ * are independent non-conformances Inji Certify's real output can carry
+ * either or both of at once; only checking one inside the other's branch
+ * would silently miss the case with just the other one.
+ *
  * Detection is on the actual decoded shape of the bytes received, never on
  * an assumption of which DPG produced them: a walt.id credential (no
- * wrapper) passes through completely unmodified, byte-for-byte.
+ * wrapper, no issuerAuth tag) passes through completely unmodified,
+ * byte-for-byte re-encoded identically to the input.
  *
  * IMPORTANT: @animo-id/mdoc's cborDecode returns a real JS Map for a CBOR
  * map (confirmed empirically against both the Inji-wrapped and walt.id
@@ -95,9 +180,18 @@ export function detectAndUnwrapMdocEnvelope(base64Url: string): { base64Url: str
     decoded.has('docType') &&
     !decoded.has('nameSpaces')
   ) {
-    const inner = decoded.get('issuerSigned');
-    const reEncoded = cborEncode(inner);
+    const inner = decoded.get('issuerSigned') as Map<string, unknown>;
+    const fixed = unwrapIssuerAuthTag(inner);
+    const reEncoded = cborEncode(fixed);
     return { base64Url: TypedArrayEncoder.toBase64URL(reEncoded), wasWrapped: true };
+  }
+
+  if (decoded instanceof Map && decoded.has('issuerAuth') && decoded.has('nameSpaces')) {
+    const fixed = unwrapIssuerAuthTag(decoded);
+    if (fixed !== decoded) {
+      const reEncoded = cborEncode(fixed);
+      return { base64Url: TypedArrayEncoder.toBase64URL(reEncoded), wasWrapped: false };
+    }
   }
 
   return { base64Url, wasWrapped: false };

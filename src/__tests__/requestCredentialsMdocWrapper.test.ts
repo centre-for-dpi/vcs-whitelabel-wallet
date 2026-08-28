@@ -39,6 +39,7 @@ import { detectAndUnwrapMdocEnvelope } from '../agent/oid4vci/requestCredentials
 import { cborDecode } from '@animo-id/mdoc';
 import wrappedFixture from './fixtures/inji-mdoc-wrapped.json';
 import unwrappedFixture from './fixtures/waltid-mdoc-unwrapped.json';
+import tag18Fixture from './fixtures/inji-mdoc-tag18-unwrapped.json';
 
 function base64UrlToBytes(s: string): Uint8Array {
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -64,5 +65,55 @@ describe('detectAndUnwrapMdocEnvelope', () => {
     const result = detectAndUnwrapMdocEnvelope(unwrappedBase64Url);
     expect(result.wasWrapped).toBe(false);
     expect(result.base64Url).toBe(unwrappedBase64Url); // identical, no re-serialization
+  });
+
+  // Reproduces a live bug found during Task 6 end-to-end verification, one
+  // step past the {docType, issuerSigned} envelope bug above: a REAL mDL
+  // issued by Inji Certify v0.14.0 (all server-side bugs already fixed,
+  // credential successfully signed and returned) still failed on-device
+  // with "TypeError: iterator method is not callable" inside
+  // @animo-id/mdoc's parseIssuerAuthElement — `new IssuerAuth(...rawIssuerAuth)`
+  // spreading a cbor-x Tag object (not iterable) because Inji encodes
+  // issuerAuth as a properly CBOR-tag-18-wrapped COSE_Sign1 (RFC 8152 §4.2
+  // permits this), while @animo-id/mdoc's parser assumes the bare-array
+  // shape walt.id's issuer produces instead. This fixture is the exact
+  // credential from that live failure (already unwrapped of the
+  // {docType, issuerSigned} envelope — that bug was fixed first — but
+  // still carrying the tag-18 issuerAuth underneath).
+  test('unwraps a cbor-x auto-parsed Sign1 (CBOR tag-18 COSE_Sign1) issuerAuth', () => {
+    const tag18Base64Url = (tag18Fixture as { credential: string }).credential;
+    const before = cborDecode(base64UrlToBytes(tag18Base64Url)) as Map<string, unknown>;
+    const rawIssuerAuthBefore = before.get('issuerAuth') as Record<string, unknown>;
+    // Confirms the fixture actually reproduces the bug precondition: cbor-x's
+    // registered tag-18 extension (Sign1.tag = 18) auto-parsed issuerAuth
+    // into a class instance with named properties, NOT the bare 4-element
+    // array @animo-id/mdoc's parseIssuerAuthElement spreads into
+    // `new IssuerAuth(...)`. If a future version changes this auto-parse
+    // behavior, cborDecode would return something else here and this test
+    // would no longer be exercising anything real.
+    expect(Array.isArray(rawIssuerAuthBefore)).toBe(false);
+    expect('encodedProtectedHeaders' in rawIssuerAuthBefore).toBe(true);
+    expect('unprotectedHeaders' in rawIssuerAuthBefore).toBe(true);
+    expect('payload' in rawIssuerAuthBefore).toBe(true);
+    expect('signature' in rawIssuerAuthBefore).toBe(true);
+
+    const result = detectAndUnwrapMdocEnvelope(tag18Base64Url);
+    expect(result.wasWrapped).toBe(false); // no {docType, issuerSigned} envelope here
+
+    const after = cborDecode(base64UrlToBytes(result.base64Url)) as Map<string, unknown>;
+    const rawIssuerAuthAfter = after.get('issuerAuth');
+    // Unwrapped to the bare 4-element array @animo-id/mdoc's spread expects,
+    // with every byte carried through untouched.
+    expect(Array.isArray(rawIssuerAuthAfter)).toBe(true);
+    const [protectedHeaders, unprotectedHeaders, payload, signature] = rawIssuerAuthAfter as unknown[];
+    expect(Buffer.from(protectedHeaders as Uint8Array)).toEqual(
+      Buffer.from(rawIssuerAuthBefore.encodedProtectedHeaders as Uint8Array),
+    );
+    expect(unprotectedHeaders).toBeInstanceOf(Map);
+    expect(Array.from((unprotectedHeaders as Map<unknown, unknown>).entries())).toEqual(
+      Array.from((rawIssuerAuthBefore.unprotectedHeaders as Map<unknown, unknown>).entries()),
+    );
+    expect(Buffer.from(payload as Uint8Array)).toEqual(Buffer.from(rawIssuerAuthBefore.payload as Uint8Array));
+    expect(Buffer.from(signature as Uint8Array)).toEqual(Buffer.from(rawIssuerAuthBefore.signature as Uint8Array));
   });
 });
