@@ -1,0 +1,14 @@
+diff --git a/node_modules/@credo-ts/core/build/crypto/webcrypto/utils/keyAlgorithmConversion.mjs b/node_modules/@credo-ts/core/build/crypto/webcrypto/utils/keyAlgorithmConversion.mjs
+index 4dc28e3..57810a4 100644
+--- a/node_modules/@credo-ts/core/build/crypto/webcrypto/utils/keyAlgorithmConversion.mjs
++++ b/node_modules/@credo-ts/core/build/crypto/webcrypto/utils/keyAlgorithmConversion.mjs
+@@ -97,8 +97,7 @@ const spkiToPublicJwk = (spki) => {
+ 		publicKey: new Uint8Array(spki.subjectPublicKey)
+ 	});
+ 	if (spki.algorithm.isEqual(rsaKeyAlgorithmIdentifier)) {
+-		const keyWithoutUnusedBits = new Uint8Array(spki.subjectPublicKey).slice(1);
+-		const rsaPublicKey = AsnParser.parse(keyWithoutUnusedBits, RSAPublicKey);
++		const rsaPublicKey = AsnParser.parse(new Uint8Array(spki.subjectPublicKey), RSAPublicKey);
+ 		return PublicJwk.fromPublicKey({
+ 			kty: "RSA",
+ 			modulus: new Uint8Array(rsaPublicKey.modulus),
