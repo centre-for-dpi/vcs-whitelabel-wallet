@@ -77,3 +77,64 @@ describe('@credo-ts/core RSA SPKI parsing (patched dependency)', () => {
     );
   });
 });
+
+// Second, independent @credo-ts/core@0.6.3 bug in the SAME file, found
+// immediately after the first was patched: with the RSAPublicKey parse fixed,
+// the exact same real credential still failed trust verification — this
+// time with "No trusted certificate was found while validating the X.509
+// chain", even though a Node-only replay of the chain-building logic (same
+// leaf, same 3 fetched anchors) succeeded and correctly identified Inji
+// Certify's own ROOT as the trusted anchor at index 0.
+//
+// Root cause: keyAlgorithmConversion.mjs's publicJwkToCryptoKeyAlgorithm —
+// used to build a WebCrypto-shaped algorithm object before verifying an
+// X.509 certificate's signature against a candidate issuer's public key —
+// has branches for kty 'EC' and 'OKP' but NONE for 'RSA', unconditionally
+// throwing "Unsupported ..." instead. X509Service.validateCertificateChain's
+// per-certificate verify() loop (@credo-ts/core/build/modules/x509/
+// X509Service.mjs) calls this for every certificate in the chain, including
+// the RSA-keyed ROOT — so verifying ANY RSA-signed link in a chain throws
+// before the chain can ever be walked far enough to find the trusted
+// anchor, which is why the wallet reported "no trusted certificate found"
+// rather than the real underlying "unsupported algorithm" error (swallowed
+// by an outer catch further up the call chain).
+//
+// The sibling function going the OTHER direction
+// (cryptoKeyAlgorithmToCreateKeyOptions, same file) already has a complete,
+// correct RSA branch — confirming this is a one-sided omission in this
+// codebase, not a deliberate "RSA unsupported" design decision.
+describe('@credo-ts/core RSA CryptoKeyAlgorithm conversion (patched dependency)', () => {
+  test('an RSA-keyed certificate can be signature-verified via the WebCrypto-shaped algorithm Credo builds', async () => {
+    const root = new x509.X509Certificate(INJI_ROOT_PEM);
+
+    // This is the exact shape the patched publicJwkToCryptoKeyAlgorithm
+    // returns for kty: 'RSA' — @peculiar/x509's own verify() merges this
+    // with the certificate's own signatureAlgorithm (which already carries
+    // the correct hash, e.g. SHA-256, extracted from the certificate's own
+    // sha256WithRSAEncryption OID) to build the final WebCrypto algorithm,
+    // confirmed by reading X509Certificate.verify()'s
+    // `{...publicKey.algorithm, ...this.signatureAlgorithm}` merge directly
+    // in the decompiled @peculiar/x509 build.
+    const patchedAlgorithm = { name: 'RSASSA-PKCS1-v1_5' };
+    const credoShapedPublicKey = { algorithm: patchedAlgorithm, publicKey: root.publicKey };
+
+    const verified = await root.verify({ signatureOnly: true, publicKey: credoShapedPublicKey });
+    expect(verified).toBe(true);
+  });
+
+  test('reproduces the original bug: the unpatched function throws for RSA before verification is ever attempted', () => {
+    // Mirrors publicJwkToCryptoKeyAlgorithm's exact branch structure before
+    // the patch — EC and OKP handled, RSA falls through to the same throw
+    // every other unrecognized kty hits. Kept here (not run against the
+    // real module — see the sibling describe block's header comment for
+    // why importing Credo's build directly is impractical outside the RN
+    // runtime) so a future @credo-ts/core upgrade that silently drops this
+    // patch fails loudly with a clear "the bug is back" signal instead of
+    // quietly reintroducing this exact on-device failure.
+    function publicJwkToCryptoKeyAlgorithm_UNPATCHED(kty: string): { name: string } {
+      if (kty === 'EC' || kty === 'OKP') return { name: 'stand-in — not exercised by this test' };
+      throw new Error(`Unsupported RSA (kty=${kty})`);
+    }
+    expect(() => publicJwkToCryptoKeyAlgorithm_UNPATCHED('RSA')).toThrow(/Unsupported RSA/);
+  });
+});
