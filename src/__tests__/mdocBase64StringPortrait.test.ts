@@ -83,4 +83,66 @@ describe('base64-STRING-encoded bstr claims (Inji Certify non-conformance)', () 
     expect(asBytes(shortAlnum)).toBeNull();
     expect(formatClaimValue(shortAlnum)).toBe(shortAlnum);
   });
+
+  // Direct parity check: the SAME portrait image, encoded the ISO
+  // 18013-5-conformant way (a real CBOR byte string — Uint8Array, what
+  // walt.id's mdoc issuer produces) versus Inji Certify's non-conformant
+  // base64-string way, must be recognized identically and produce
+  // pixel-identical output. This fix ADDS a second recognition path in
+  // asBytes() (the base64-string branch only runs when the Uint8Array/
+  // ArrayBufferView checks above it both fail — see asBytes' source) and
+  // ADDS an early-return in claimImageUri() gated on `typeof value ===
+  // 'string'` — neither touches the pre-existing Uint8Array path at all,
+  // so a conformant issuer's output takes the exact same code it always
+  // did, unchanged.
+  describe('parity with the ISO 18013-5-conformant Uint8Array encoding (e.g. walt.id)', () => {
+    const conformantBytes = (() => {
+      const binary = global.atob(JPEG_BASE64_STRING);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    })();
+
+    test('both encodings of the identical image are recognized as the same mime type', () => {
+      expect(imageMimeType(conformantBytes)).toBe('image/jpeg');
+      expect(imageMimeType(JPEG_BASE64_STRING)).toBe('image/jpeg');
+      expect(imageMimeType(conformantBytes)).toBe(imageMimeType(JPEG_BASE64_STRING));
+    });
+
+    test('both encodings decode via asBytes() to identical byte content', () => {
+      const fromBytes = asBytes(conformantBytes);
+      const fromString = asBytes(JPEG_BASE64_STRING);
+      expect(fromBytes).not.toBeNull();
+      expect(fromString).not.toBeNull();
+      expect(Array.from(fromBytes as Uint8Array)).toEqual(Array.from(fromString as Uint8Array));
+    });
+
+    test('both encodings produce a data: URI that decodes back to the identical image bytes', () => {
+      const uriFromBytes = claimImageUri(conformantBytes);
+      const uriFromString = claimImageUri(JPEG_BASE64_STRING);
+      expect(uriFromBytes).not.toBeNull();
+      expect(uriFromString).not.toBeNull();
+
+      const decode = (uri: string) => {
+        const b64 = uri.split(',')[1];
+        const binary = global.atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return Array.from(bytes);
+      };
+      expect(decode(uriFromBytes as string)).toEqual(decode(uriFromString as string));
+    });
+
+    test('both encodings produce the identical formatClaimValue summary', () => {
+      expect(formatClaimValue(conformantBytes)).toBe(formatClaimValue(JPEG_BASE64_STRING));
+    });
+
+    test("the conformant Uint8Array path is untouched: it never reaches the base64-string branch", () => {
+      // asBytes(Uint8Array) must return the SAME instance passed in (its
+      // first branch, `if (value instanceof Uint8Array) return value`) —
+      // proving the base64-string decoding path added by this fix was
+      // never even reached for conformant input.
+      expect(asBytes(conformantBytes)).toBe(conformantBytes);
+    });
+  });
 });
