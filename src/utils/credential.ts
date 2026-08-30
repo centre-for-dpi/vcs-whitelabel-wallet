@@ -488,6 +488,50 @@ export const sortClaimKeys = (keys: string[]): string[] =>
   [...keys].sort((a, b) => formatClaimKey(a).localeCompare(formatClaimKey(b)));
 
 /**
+ * Matches a base64 or base64url string with no internal whitespace, long
+ * enough that a false-positive match on ordinary short text is implausible
+ * (the shortest real portrait JPEG is thousands of bytes -> well over 100
+ * base64 characters; a document number or name never reaches that length).
+ * '=' padding is base64-only, never appears in base64url, so allowing it
+ * optionally covers both.
+ */
+const BASE64_LIKE_RE = /^[A-Za-z0-9+/_-]{100,}={0,2}$/;
+
+/**
+ * Decodes a base64/base64url STRING claim back to bytes, or returns null if
+ * the string doesn't look like base64 at all. Needed because Inji Certify
+ * v0.14.0 encodes `portrait` (and potentially other bstr elements) as a
+ * base64 STRING claim value instead of a real CBOR byte string — confirmed
+ * live: a real captured credential's `claims.portrait` was `typeof
+ * 'string'`, 314488 characters, starting with `/9j/4AAQSkZJRgAB...` (a
+ * genuine JPEG's base64 encoding — `/9j/` decodes to FF D8 FF, the JPEG SOI
+ * marker). This is a non-conformance in Inji Certify's own MSO
+ * construction (ISO 18013-5 defines portrait as a bstr, not a base64 tstr)
+ * — the same category of issue as the missing validityInfo.signed field
+ * fixed earlier in this same investigation, but this one is fixable
+ * wallet-side without patching a third-party library, since the wallet
+ * itself controls how it interprets its own claim values before display.
+ *
+ * Without this, the raw 314KB base64 string fell through to
+ * formatClaimValue's plain-string branch and rendered as literal text in
+ * the credential detail screen — reproduced live: extreme UI lag opening
+ * the detail sheet, sometimes a full crash, from React Native laying out a
+ * single ~314,000-character Text node.
+ */
+const base64StringToBytes = (value: unknown): Uint8Array | null => {
+  if (typeof value !== 'string' || !BASE64_LIKE_RE.test(value)) return null;
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = global.atob(normalized);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch {
+    return null; // not valid base64 after all — treat as a plain string claim
+  }
+};
+
+/**
  * Byte-valued claims (ISO 18013-5 bstr elements: portrait,
  * signature_usual_mark, the biometric_template_* family) decode to
  * Uint8Array. JSON.stringify turns those into {"0":255,"1":216,...} — a wall
@@ -497,11 +541,15 @@ export const sortClaimKeys = (keys: string[]): string[] =>
  * Sniffing the magic bytes rather than trusting the field name keeps this
  * working for any bstr element, and avoids emitting an <Image> for a byte
  * string that is not an image at all (signature_usual_mark may be either).
+ *
+ * Also accepts a base64/base64url STRING claim value (see
+ * base64StringToBytes) — some issuers (confirmed: Inji Certify v0.14.0)
+ * encode bstr elements as base64 text instead of real CBOR byte strings.
  */
 export const asBytes = (value: unknown): Uint8Array | null => {
   if (value instanceof Uint8Array) return value;
   if (ArrayBuffer.isView(value)) return new Uint8Array((value as ArrayBufferView).buffer);
-  return null;
+  return base64StringToBytes(value);
 };
 
 export const imageMimeType = (value: unknown): string | null => {
@@ -514,11 +562,26 @@ export const imageMimeType = (value: unknown): string | null => {
 
 export const isImageClaim = (value: unknown): boolean => imageMimeType(value) !== null;
 
-/** data: URI for an image-valued claim, or null when the claim is not an image. */
+/**
+ * data: URI for an image-valued claim, or null when the claim is not an
+ * image.
+ *
+ * When the claim value already IS a base64/base64url string (see asBytes'
+ * doc comment on Inji Certify's non-conformant string-encoded portrait),
+ * its base64 text is reused directly instead of decoding then
+ * re-encoding — pointless work on a 300KB+ portrait, and re-running
+ * btoa/String.fromCharCode over every byte one at a time was measurably
+ * slow enough on-device to be part of the original lag report.
+ */
 export const claimImageUri = (value: unknown): string | null => {
   const mime = imageMimeType(value);
+  if (!mime) return null;
+  if (typeof value === 'string' && BASE64_LIKE_RE.test(value)) {
+    const standardBase64 = value.replace(/-/g, '+').replace(/_/g, '/');
+    return `data:${mime};base64,${standardBase64}`;
+  }
   const bytes = asBytes(value);
-  if (!mime || !bytes) return null;
+  if (!bytes) return null;
   let binary = '';
   for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
   return `data:${mime};base64,${global.btoa(binary)}`;
@@ -585,16 +648,24 @@ export const formatClaimValue = (value: unknown): string => {
   const date = asDate(value);
   if (date) return formatDate(date);
 
-  if (typeof value === 'string') return value.length > 0 ? value : '—';
-
-  // Byte strings: never dump the digits. An image is rendered by the UI via
-  // claimImageUri; anything else gets a size summary.
+  // Byte strings: never dump the digits — checked BEFORE the plain-string
+  // branch below, because some issuers (confirmed: Inji Certify v0.14.0)
+  // encode a bstr element like portrait as a base64 STRING claim value
+  // rather than a real CBOR byte string (see asBytes'/base64StringToBytes'
+  // doc comment). Without this ordering, a 300KB+ base64 portrait string
+  // matched the plain-string branch first and rendered as literal text —
+  // reproduced live as severe UI lag / a crash opening the credential
+  // detail sheet. An image is rendered by the UI via claimImageUri; a
+  // recognized-as-bytes-but-not-an-image value gets a size summary instead
+  // of its raw text.
   const bytes = asBytes(value);
   if (bytes) {
     if (bytes.length === 0) return '—';
     const mime = imageMimeType(value);
     return mime ? `${mime} · ${Math.round(bytes.length / 1024)} KB` : `${bytes.length} bytes`;
   }
+
+  if (typeof value === 'string') return value.length > 0 ? value : '—';
 
   // Nested structures: see claimShape, which the UI uses to render a table
   // or a property list. This text form is the fallback for callers that can
