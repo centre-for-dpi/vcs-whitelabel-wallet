@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { branding, oidcConfig } from '../branding.config';
 import { useInitializeAgent } from '../src/agent/context';
 import { useUser } from '../src/auth/UserContext';
+import { useOidcDiscovery } from '../src/auth/useOidcDiscovery';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../src/auth/biometric';
 import {
   getWalletKey,
@@ -45,9 +46,7 @@ export default function Unlock() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const discovery = AuthSession.useAutoDiscovery(
-    oidcConfig.enabled ? oidcConfig.issuerUrl : null,
-  );
+  const discovery = useOidcDiscovery();
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { branding, oidcConfig } from '../../branding.config';
 import { useAgentState } from '../../src/agent/context';
 import { useUser } from '../../src/auth/UserContext';
+import { useOidcDiscovery } from '../../src/auth/useOidcDiscovery';
 import { checkBiometricSupport, authenticateWithBiometrics } from '../../src/auth/biometric';
 import { SUPPORTED_LANGS, setLanguagePreference, type Language } from '../../src/i18n';
 import { getUserDisplayName, getBiometricsEnabled, setBiometricsEnabled, getRecoveryPhrase, saveRecoveryPhrase, verifyPin, savePin, OidcUser, saveOidcTokens } from '../../src/utils/storage';
@@ -33,9 +34,7 @@ export default function Settings() {
   const [oidcLoading, setOidcLoading] = useState(false);
   const [oidcError, setOidcError] = useState('');
 
-  const discovery = AuthSession.useAutoDiscovery(
-    oidcConfig.enabled ? oidcConfig.issuerUrl : null,
-  );
+  const discovery = useOidcDiscovery();
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId: oidcConfig.clientId,
