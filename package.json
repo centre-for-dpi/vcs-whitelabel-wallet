@@ -29,6 +29,7 @@
     "@credo-ts/core": "0.6.3",
     "@credo-ts/openid4vc": "0.6.3",
     "@credo-ts/react-native": "0.6.3",
+    "@credo-ts/webvh": "0.6.3",
     "@openwallet-foundation/askar-react-native": "0.6.0",
     "@openwallet-foundation/askar-shared": "0.6.0",
     "@scure/bip39": "^2.2.0",

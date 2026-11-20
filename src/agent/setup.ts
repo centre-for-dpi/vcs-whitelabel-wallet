@@ -3,6 +3,7 @@ import {
   ConsoleLogger,
   DidsModule,
   InitConfig,
+  JwkDidResolver,
   KeyDidRegistrar,
   KeyDidResolver,
   LogLevel,
@@ -14,6 +15,7 @@ import {
 import { agentDependencies } from '@credo-ts/react-native';
 import { AskarModule } from '@credo-ts/askar';
 import { OpenId4VcModule } from '@credo-ts/openid4vc';
+import { StrictWebVhDidResolver } from './webvhResolver';
 import { askar } from '@openwallet-foundation/askar-react-native';
 import { createTrustedCertificatesResolver } from './mdocTrustAnchors';
 
@@ -171,7 +173,11 @@ export const setupAgent = async (walletKey: string): Promise<WalletAgent> => {
       }),
       dids: new DidsModule({
         registrars: [new KeyDidRegistrar()],
-        resolvers: [new KeyDidResolver(), new WebDidResolver()],
+        // All on-device, no resolver service. WebVhDidResolver fetches the
+        // DID's did.jsonl log from its own domain and verifies the hash chain
+        // and each entry's signature (via the Askar KMS) before trusting it;
+        // the Strict wrapper also checks the result is the DID requested.
+        resolvers: [new KeyDidResolver(), new JwkDidResolver(), new WebDidResolver(), new StrictWebVhDidResolver()],
       }),
       w3cCredentials: new W3cCredentialsModule(),
       x509: new X509Module({
