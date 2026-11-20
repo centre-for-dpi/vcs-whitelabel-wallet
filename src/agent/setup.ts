@@ -7,7 +7,6 @@ import {
   KeyDidRegistrar,
   KeyDidResolver,
   LogLevel,
-  PeerDidResolver,
   SdJwtVcModule,
   W3cCredentialsModule,
   WebDidResolver,
@@ -16,10 +15,9 @@ import {
 import { agentDependencies } from '@credo-ts/react-native';
 import { AskarModule } from '@credo-ts/askar';
 import { OpenId4VcModule } from '@credo-ts/openid4vc';
+import { StrictWebVhDidResolver } from './webvhResolver';
 import { askar } from '@openwallet-foundation/askar-react-native';
 import { createTrustedCertificatesResolver } from './mdocTrustAnchors';
-import { UniversalDidResolver } from './universalResolver';
-import { didResolutionConfig } from '../../branding.config';
 
 export type WalletAgent = Agent;
 
@@ -150,22 +148,6 @@ export const setupAgent = async (walletKey: string): Promise<WalletAgent> => {
     logger: new ConsoleLogger(LogLevel.warn),
   };
 
-  // On-device resolvers come first: Credo uses the first resolver whose
-  // supportedMethods contains the DID's method.
-  const localDidResolvers = [
-    new KeyDidResolver(),
-    new JwkDidResolver(),
-    new PeerDidResolver(),
-    new WebDidResolver(),
-  ];
-  // Everything else goes to the Universal Resolver (see didResolutionConfig).
-  const universalDidResolver = didResolutionConfig.universalResolverUrl
-    ? new UniversalDidResolver(didResolutionConfig.universalResolverUrl, {
-        fallbackMethods: didResolutionConfig.fallbackMethods,
-        localMethods: localDidResolvers.flatMap((r) => r.supportedMethods),
-      })
-    : undefined;
-
   const agent = new Agent({
     config,
     modules: {
@@ -191,7 +173,11 @@ export const setupAgent = async (walletKey: string): Promise<WalletAgent> => {
       }),
       dids: new DidsModule({
         registrars: [new KeyDidRegistrar()],
-        resolvers: [...localDidResolvers, ...(universalDidResolver ? [universalDidResolver] : [])],
+        // All on-device, no resolver service. WebVhDidResolver fetches the
+        // DID's did.jsonl log from its own domain and verifies the hash chain
+        // and each entry's signature (via the Askar KMS) before trusting it;
+        // the Strict wrapper also checks the result is the DID requested.
+        resolvers: [new KeyDidResolver(), new JwkDidResolver(), new WebDidResolver(), new StrictWebVhDidResolver()],
       }),
       w3cCredentials: new W3cCredentialsModule(),
       x509: new X509Module({
@@ -212,8 +198,5 @@ export const setupAgent = async (walletKey: string): Promise<WalletAgent> => {
   });
 
   await agent.initialize();
-  // Pick up the instance's live method list without delaying startup; the
-  // fallback list is in effect until (and unless) this succeeds.
-  void universalDidResolver?.refreshMethods();
   return agent;
 };

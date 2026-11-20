@@ -111,31 +111,3 @@ export const discoveryConfig: {
   enabled: true,
   hubUrl: 'https://verifiably.ysalabs.work',
 };
-
-// DID resolution for methods the wallet cannot resolve on-device.
-// did:key, did:jwk, did:peer and did:web are always resolved locally and are
-// never sent to the resolver below; every other method goes to a DIF Universal
-// Resolver (https://github.com/decentralized-identity/universal-resolver).
-//
-// The default is DIF's PUBLIC DEV instance. It is fine for development, but:
-//   - it is rate-limited to 10 requests per 30 minutes per client IP (so devices
-//     behind one NAT share that budget); Credo caches each resolved DID for 5 min;
-//   - it has no uptime guarantee;
-//   - it sees every DID this wallet resolves (i.e. which issuers and verifiers
-//     the holder talks to).
-// Production deployments should run their own instance and point
-// universalResolverUrl at it.
-// Set universalResolverUrl to '' to turn Universal Resolver lookups off.
-export const didResolutionConfig: {
-  universalResolverUrl: string;
-  /** Used until the instance's GET /1.0/methods answers, or if it never does. */
-  fallbackMethods: string[];
-} = {
-  universalResolverUrl: 'https://dev.uniresolver.io',
-  // What dev.uniresolver.io served on 2026-11-20 (the on-device methods are
-  // filtered out automatically, so listing them here is harmless).
-  fallbackMethods: [
-    'btcr2', 'cheqd', 'cid', 'dns', 'ebsi', 'ethr', 'hedera', 'iden3', 'indy', 'ion',
-    'kscirc', 'ling', 'near', 'oyd', 'pkh', 'scid', 'webs', 'webvh',
-  ],
-};
