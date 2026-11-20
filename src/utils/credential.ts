@@ -290,8 +290,8 @@ export const fromW3cRecord = (record: W3cCredentialRecord): CredentialEntry => {
     ? vc.issuanceDate
     : new Date().toISOString();
 
-  const expiryDate = typeof (vc as Record<string, unknown>).expirationDate === 'string'
-    ? (vc as Record<string, unknown>).expirationDate as string
+  const expiryDate = typeof (vc as unknown as Record<string, unknown>).expirationDate === 'string'
+    ? (vc as unknown as Record<string, unknown>).expirationDate as string
     : undefined;
 
   const rawSubject = Array.isArray(vc.credentialSubject)

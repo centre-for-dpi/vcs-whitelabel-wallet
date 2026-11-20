@@ -285,10 +285,10 @@ function isLegacyEndpoint(offer: Record<string, unknown>): boolean {
   );
 }
 
-type ProofOptions = { algorithm: string; useJwk: boolean };
+type ProofOptions = { algorithm: Kms.KnownJwaSignatureAlgorithm; useJwk: boolean };
 
 // Algorithms supported by the Askar KMS backend in React Native (no RSA).
-const KMS_SUPPORTED_ALGS = ['EdDSA', 'ES256', 'ES256K', 'ES384', 'ES512'];
+const KMS_SUPPORTED_ALGS: Kms.KnownJwaSignatureAlgorithm[] = ['EdDSA', 'ES256', 'ES256K', 'ES384', 'ES512'];
 
 function proofOptionsFromConfig(config: Record<string, unknown>): ProofOptions {
   const proofJwt = (config.proof_types_supported as Record<string, unknown> | undefined)
@@ -296,7 +296,10 @@ function proofOptionsFromConfig(config: Record<string, unknown>): ProofOptions {
   const issuerAlgs = (proofJwt?.proof_signing_alg_values_supported as string[] | undefined) ?? [];
   const bindingMethods = config.cryptographic_binding_methods_supported as string[] | undefined;
   // Pick the first issuer algorithm that our KMS can handle; fall back to EdDSA.
-  const algorithm = issuerAlgs.find((a) => KMS_SUPPORTED_ALGS.includes(a)) ?? 'EdDSA';
+  const algorithm =
+    issuerAlgs.find((a): a is Kms.KnownJwaSignatureAlgorithm =>
+      (KMS_SUPPORTED_ALGS as string[]).includes(a),
+    ) ?? 'EdDSA';
   return {
     algorithm,
     // 'cose_key' (mdoc/mDL's binding method, e.g. org.iso.18013.5.1.mDL) is a

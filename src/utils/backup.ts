@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import CryptoJS from 'crypto-js';
 import { entropyToMnemonic } from '@scure/bip39';
-import { wordlist } from '@scure/bip39/wordlists/english';
+import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { KdfMethod, Store, StoreKeyMethod } from '@openwallet-foundation/askar-shared';
 import RNFS from 'react-native-fs';
 import type { WalletAgent } from '../agent/setup';

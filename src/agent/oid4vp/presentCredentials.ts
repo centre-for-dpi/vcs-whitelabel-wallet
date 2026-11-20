@@ -19,7 +19,7 @@ type MatchedItem = {
   hasDisclosures: boolean;
   holderKeyId?: string;
   holderDid?: string;
-  holderAlg: string;      // signing algorithm for KB-JWT (from cnf.jwk or EdDSA default)
+  holderAlg: Kms.KnownJwaSignatureAlgorithm; // signing algorithm for KB-JWT (from cnf.jwk or EdDSA default)
 };
 
 /**
@@ -225,7 +225,7 @@ async function buildMatchedItems(
         .credentialInstances?.[0]?.kmsKeyId);
 
     let holderDid: string | undefined;
-    let holderAlg = 'EdDSA';
+    let holderAlg: Kms.KnownJwaSignatureAlgorithm = 'EdDSA';
     const jwtPayload = decodeJwtPayload(compact.split('~')[0]);
     if (jwtPayload) {
       holderDid = jwtPayload.sub as string | undefined;
@@ -646,7 +646,7 @@ async function buildKbJwt(
   sdJwtBase: string,
   aud: string,
   nonce: string,
-  algorithm = 'EdDSA',
+  algorithm: Kms.KnownJwaSignatureAlgorithm = 'EdDSA',
 ): Promise<string> {
   const sdHashB64 = await ExpoCrypto.digestStringAsync(
     ExpoCrypto.CryptoDigestAlgorithm.SHA256,
@@ -719,7 +719,7 @@ function genId(): string {
 }
 
 /** Maps a public JWK to the JWT signature algorithm it requires for key binding. */
-function jwkAlgorithm(jwk: Record<string, unknown> | undefined): string {
+function jwkAlgorithm(jwk: Record<string, unknown> | undefined): Kms.KnownJwaSignatureAlgorithm {
   if (!jwk) return 'EdDSA';
   const kty = jwk.kty as string;
   if (kty === 'EC') {

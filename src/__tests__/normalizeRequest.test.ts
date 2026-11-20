@@ -195,7 +195,7 @@ describe('normalizeAuthorizationRequestUrl', () => {
     const result = await normalizeAuthorizationRequestUrl(url);
     const params = new URLSearchParams(result.split('?')[1]);
     const inlined = JSON.parse(params.get('presentation_definition')!);
-    const descriptor = inlined.input_descriptors[0] as Record<string, Record<string, unknown>>;
+    const descriptor = inlined.input_descriptors[0] as { format: { jwt_vc_json: { alg: unknown } } };
 
     expect(Array.isArray(descriptor.format.jwt_vc_json.alg)).toBe(true);
     expect(descriptor.format.jwt_vc_json.alg).toContain('ES256');
@@ -218,7 +218,7 @@ describe('normalizeAuthorizationRequestUrl', () => {
     const result = await normalizeAuthorizationRequestUrl(url);
     const params = new URLSearchParams(result.split('?')[1]);
     const inlined = JSON.parse(params.get('presentation_definition')!);
-    const descriptor = inlined.input_descriptors[0] as Record<string, Record<string, unknown>>;
+    const descriptor = inlined.input_descriptors[0] as { format: { jwt_vc_json: { alg: unknown } } };
 
     // Existing alg=['EdDSA'] must not be replaced
     expect(descriptor.format.jwt_vc_json.alg).toEqual(['EdDSA']);

@@ -32,7 +32,7 @@ export async function selectCredentialsForRequest(
   resolved: OpenId4VpResolvedAuthorizationRequest,
 ): Promise<SelectedCredentials> {
   const result: SelectedCredentials = {};
-  const r = resolved as Record<string, unknown>;
+  const r = resolved as unknown as Record<string, unknown>;
 
   const pex = r.presentationExchange as Record<string, unknown> | undefined;
   const dcql = r.dcql as Record<string, unknown> | undefined;
