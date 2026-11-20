@@ -3,6 +3,7 @@ import type { W3cJsonCredential } from '@credo-ts/core';
 import type { WalletAgent } from '../setup';
 import type { CredentialResult } from './requestCredentials';
 import { setCurrentIssuerBaseUrl, clearCurrentIssuerBaseUrl } from '../mdocTrustAnchors';
+import { getSdJwtPrettyClaims } from '../../utils/credential';
 
 export type StorageMeta = {
   issuerName: string;
@@ -160,8 +161,10 @@ export async function storeOid4VciCredential(
     const stored = await agent.sdJwtVc.store({ record: record as SdJwtVcRecord });
     stored.setTag('issuerName', meta.issuerName);
     stored.setTag('credentialName', formatConfigId(configId));
-    const prettyClaims = stored.prettyClaims as Record<string, unknown> | undefined;
-    const vct = prettyClaims?.vct as string | undefined;
+    // SdJwtVcRecord has no `prettyClaims` getter in Credo 0.6 (it lives on
+    // firstCredential), so the previous `stored.prettyClaims` was always
+    // undefined and this tag was never written.
+    const vct = getSdJwtPrettyClaims(stored).vct as string | undefined;
     if (vct) stored.setTag('credentialVct', vct);
     const holderKeyId = (stored as unknown as { credentialInstances?: Array<{ kmsKeyId?: string }> })
       .credentialInstances?.[0]?.kmsKeyId;
