@@ -1,0 +1,17 @@
+diff --git a/node_modules/expo-modules-core/android/build.gradle b/node_modules/expo-modules-core/android/build.gradle
+index 61ed6d6..6268545 100644
+--- a/node_modules/expo-modules-core/android/build.gradle
++++ b/node_modules/expo-modules-core/android/build.gradle
+@@ -94,7 +94,11 @@ android {
+           "-DREACT_NATIVE_TARGET_VERSION=${expoModuleExtension.reactNativeVersion.minor}",
+           "-DUSE_HERMES=${USE_HERMES}",
+           "-DIS_NEW_ARCHITECTURE_ENABLED=${isNewArchitectureEnabled}",
+-          "-DUNIT_TEST=${isExpoModulesCoreTests}"
++          "-DUNIT_TEST=${isExpoModulesCoreTests}",
++          "-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF",
++          "-DANDROID_USE_LEGACY_TOOLCHAIN_FILE=OFF",
++          "-DCMAKE_SHARED_LINKER_FLAGS=-lc++_shared",
++          "-DCMAKE_EXE_LINKER_FLAGS=-lc++_shared"
+       }
+     }
+   }
