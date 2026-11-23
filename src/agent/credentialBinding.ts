@@ -1,5 +1,12 @@
 import { DidsApi, Kms } from '@credo-ts/core';
 import type { OpenId4VciCredentialBindingOptions, OpenId4VcCredentialHolderBinding } from '@credo-ts/openid4vc';
+import { keyAttestationConfig } from '../../branding.config';
+import {
+  assertCanSatisfy,
+  getKeyAttestationRequirement,
+  shouldAttachKeyAttestation,
+} from './keyAttestation/requirements';
+import { requestKeyAttestation } from './keyAttestation/walletProviderClient';
 
 export const credentialBindingResolver = async ({
   agentContext,
@@ -7,10 +14,31 @@ export const credentialBindingResolver = async ({
   supportsAllDidMethods,
   supportedDidMethods,
   proofTypes,
+  cNonce,
 }: OpenId4VciCredentialBindingOptions): Promise<OpenId4VcCredentialHolderBinding> => {
   const kms = agentContext.dependencyManager.resolve(Kms.KeyManagementApi);
   const algorithms = proofTypes.jwt?.supportedSignatureAlgorithms ?? [];
   const algorithm = algorithms[0] ?? 'EdDSA';
+
+  // Fail early with a clear message when the issuer demands a key attestation
+  // this wallet cannot provide (even with the toggle off).
+  const attestationReq = getKeyAttestationRequirement(proofTypes);
+  assertCanSatisfy(attestationReq, keyAttestationConfig);
+
+  if (shouldAttachKeyAttestation(attestationReq, keyAttestationConfig) && (supportsJwk || attestationReq)) {
+    const attestationAlgorithm =
+      (proofTypes.attestation ?? proofTypes.jwt)?.supportedSignatureAlgorithms?.[0] ?? 'EdDSA';
+    const { publicJwk, keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm: attestationAlgorithm });
+    // Credo maps attested keys back to KMS keys by `kid`.
+    const attestedKey = { ...publicJwk, kid: keyId };
+    const keyAttestationJwt = await requestKeyAttestation({
+      walletProviderUrl: keyAttestationConfig.walletProviderUrl,
+      attestedKey,
+      nonce: cNonce,
+      keyStorage: keyAttestationConfig.keyStorage,
+    });
+    return { method: 'attestation', keyAttestationJwt };
+  }
 
   if (supportsJwk) {
     const { publicJwk } = await kms.createKeyForSignatureAlgorithm({ algorithm });
