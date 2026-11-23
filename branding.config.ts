@@ -111,3 +111,38 @@ export const discoveryConfig: {
   enabled: true,
   hubUrl: 'https://verifiably.ysalabs.work',
 };
+
+// OID4VCI key attestations — lets the wallet prove to an issuer that the
+// holder keys live in a controlled key store, for issuers that require it
+// (`key_attestations_required` in their credential configuration).
+//
+// walletProviderUrl is the Wallet Provider that signs the attestation
+// (no trailing slash). keyStorage is the ISO 18045 level we declare. Basic is
+// the honest level today: keys live in Askar, not in a secure element or
+// hardware-backed keystore, so never declare anything higher.
+//
+// attachWhen:
+//   'required' — attach an attestation only when the issuer demands one.
+//   'always'   — attach one to every proof, even if the issuer doesn't ask.
+//
+// Leave enabled:false to keep the feature off; issuers that require an
+// attestation then fail with a clear error instead of a server rejection.
+export type Iso18045Level =
+  | 'iso_18045_basic'
+  | 'iso_18045_enhanced-basic'
+  | 'iso_18045_moderate'
+  | 'iso_18045_high';
+
+export type KeyAttestationConfig = {
+  enabled: boolean;
+  walletProviderUrl: string;
+  keyStorage: Iso18045Level;
+  attachWhen: 'required' | 'always';
+};
+
+export const keyAttestationConfig: KeyAttestationConfig = {
+  enabled: false,
+  walletProviderUrl: '',
+  keyStorage: 'iso_18045_basic',
+  attachWhen: 'required',
+};
