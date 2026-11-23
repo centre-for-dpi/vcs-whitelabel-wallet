@@ -282,6 +282,20 @@ Declared in [app.json](app.json) as `intentFilters` (Android) and the URL `schem
 
 ---
 
+## Key attestations (dev)
+
+To test OID4VCI key attestations end to end, run the dev Wallet Provider (it signs attestations with an ephemeral P-256 key and a `jwk` header):
+
+```bash
+node scripts/dev-wallet-provider.mjs --port 8787
+```
+
+Then set `keyAttestationConfig` in `branding.config.ts` to `{ enabled: true, walletProviderUrl: 'http://<LAN-IP>:8787', keyStorage: 'iso_18045_basic', attachWhen: 'always' }` and issue an SD-JWT credential from an issuer that accepts `jwk` attestations.
+
+> **Warning:** this is NOT a production Wallet Provider (no device-integrity checks, no trust anchor), and it is unauthenticated and bound to `0.0.0.0`, so it signs attestations for anyone on the LAN: run it on trusted networks only. It only attests `iso_18045_basic`. Set `enabled: false` again before committing.
+
+---
+
 ## Tests
 
 Integration tests cover the core agent logic (no native Credo/Askar bindings required):

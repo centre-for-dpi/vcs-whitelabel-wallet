@@ -4,6 +4,13 @@ import type { OpenId4VciResolvedCredentialOffer } from '@credo-ts/openid4vc';
 import { credentialBindingResolver } from '../credentialBinding';
 import { setCurrentIssuerBaseUrl, clearCurrentIssuerBaseUrl } from '../mdocTrustAnchors';
 import { cborDecode, cborEncode } from '@animo-id/mdoc';
+import { keyAttestationConfig } from '../../../branding.config';
+import {
+  KeyAttestationError,
+  planKeyAttestation,
+  type KeyAttestationRequirement,
+} from '../keyAttestation/requirements';
+import { requestKeyAttestation } from '../keyAttestation/walletProviderClient';
 
 /* eslint-disable no-console */
 const log = __DEV__ ? console.log.bind(console) : () => {};
@@ -285,7 +292,11 @@ function isLegacyEndpoint(offer: Record<string, unknown>): boolean {
   );
 }
 
-type ProofOptions = { algorithm: Kms.KnownJwaSignatureAlgorithm; useJwk: boolean };
+type ProofOptions = {
+  algorithm: Kms.KnownJwaSignatureAlgorithm;
+  useJwk: boolean;
+  keyAttestationRequired?: KeyAttestationRequirement;
+};
 
 // Algorithms supported by the Askar KMS backend in React Native (no RSA).
 const KMS_SUPPORTED_ALGS: Kms.KnownJwaSignatureAlgorithm[] = ['EdDSA', 'ES256', 'ES256K', 'ES384', 'ES512'];
@@ -300,8 +311,15 @@ function proofOptionsFromConfig(config: Record<string, unknown>): ProofOptions {
     issuerAlgs.find((a): a is Kms.KnownJwaSignatureAlgorithm =>
       (KMS_SUPPORTED_ALGS as string[]).includes(a),
     ) ?? 'EdDSA';
+  const attRaw = proofJwt?.key_attestations_required as
+    | { key_storage?: string[]; user_authentication?: string[] }
+    | undefined;
+  const keyAttestationRequired: KeyAttestationRequirement | undefined = attRaw
+    ? { keyStorage: attRaw.key_storage, userAuthentication: attRaw.user_authentication }
+    : undefined;
   return {
     algorithm,
+    keyAttestationRequired,
     // 'cose_key' (mdoc/mDL's binding method, e.g. org.iso.18013.5.1.mDL) is a
     // JWK-shaped key the same way 'jwk' is — Credo's own OpenId4VciHolderService
     // treats them identically (supportsJwk includes cose_key). This legacy path
@@ -327,7 +345,21 @@ async function buildProofJwt(
   opts: ProofOptions = { algorithm: 'EdDSA', useJwk: false },
 ): Promise<{ proofJwt: string; keyId: string }> {
   const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
-  const { algorithm, useJwk } = opts;
+  const { algorithm, useJwk, keyAttestationRequired } = opts;
+  // Same decision as the Credo path (credentialBinding.ts); runs before any key is created.
+  const { attach } = planKeyAttestation({
+    req: keyAttestationRequired,
+    supportsJwk: useJwk,
+    config: keyAttestationConfig,
+  });
+  // The legacy path never calls nonce_endpoint, so it can only attest when the token response
+  // carried a c_nonce.
+  if (attach && !cNonce) {
+    throw new KeyAttestationError(
+      'nonce_unavailable',
+      'El emisor no entregó un c_nonce y el flujo legacy no puede solicitar uno para la key attestation.',
+    );
+  }
 
   if (useJwk) {
     const { publicJwk, keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm });
@@ -335,9 +367,17 @@ async function buildProofJwt(
     // a jwk header parameter that contains non-cryptographic metadata fields.
     const { kid: _kid, key_ops: _ko, use: _use, ext: _ext, ...cleanJwk } =
       publicJwk as Record<string, unknown>;
-    const h64 = TypedArrayEncoder.toBase64URL(
-      TypedArrayEncoder.fromString(JSON.stringify({ alg: algorithm, jwk: cleanJwk, typ: 'openid4vci-proof+jwt' })),
-    );
+    const header: Record<string, unknown> = { alg: algorithm, jwk: cleanJwk, typ: 'openid4vci-proof+jwt' };
+    if (attach) {
+      // The attested key keeps `kid` (KMS keyId), as in credentialBinding.ts.
+      header.key_attestation = await requestKeyAttestation({
+        walletProviderUrl: keyAttestationConfig.walletProviderUrl,
+        attestedKey: { ...(publicJwk as Record<string, unknown>), kid: keyId },
+        nonce: cNonce,
+        keyStorage: keyAttestationConfig.keyStorage,
+      });
+    }
+    const h64 = TypedArrayEncoder.toBase64URL(TypedArrayEncoder.fromString(JSON.stringify(header)));
     const p64 = TypedArrayEncoder.toBase64URL(
       TypedArrayEncoder.fromString(
         JSON.stringify({ nonce: cNonce, aud: issuerUrl, iat: Math.floor(Date.now() / 1000) }),
