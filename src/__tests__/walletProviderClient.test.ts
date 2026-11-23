@@ -7,7 +7,7 @@ const makeJwt = (header: object, payload: object) => `${b64url(header)}.${b64url
 
 const jwk = { kty: 'OKP', crv: 'Ed25519', x: 'abc', kid: 'k1' };
 const goodHeader = { alg: 'ES256', typ: 'key-attestation+jwt' };
-const goodPayload = { nonce: 'n-1', attested_keys: [jwk] };
+const goodPayload = { nonce: 'n-1', attested_keys: [jwk], key_storage: ['iso_18045_basic'] };
 const opts = { walletProviderUrl: 'https://wp.test/', attestedKey: jwk, nonce: 'n-1', keyStorage: 'iso_18045_basic' };
 
 const okResponse = (jwt: string) => ({ ok: true, status: 200, json: async () => ({ key_attestation: jwt }) });
@@ -48,6 +48,38 @@ describe('requestKeyAttestation', () => {
       .fn()
       .mockResolvedValue(okResponse(makeJwt(goodHeader, { ...goodPayload, attested_keys: [{ ...jwk, x: 'zzz' }] }))) as any;
     await expectCode(requestKeyAttestation(opts), 'invalid_attestation');
+  });
+
+  const { kid: _k, ...noKid } = jwk;
+  const rejects = (payload: object, o: any = opts) => {
+    global.fetch = jest.fn().mockResolvedValue(okResponse(makeJwt(goodHeader, payload))) as any;
+    return expectCode(requestKeyAttestation(o), 'invalid_attestation');
+  };
+  const ec = { kty: 'EC', crv: 'P-256', x: 'abc', y: 'yyy', kid: 'k1' };
+  test('rejects provider that drops kid', () => rejects({ ...goodPayload, attested_keys: [noKid] }));
+  test('rejects provider that changes kid', () => rejects({ ...goodPayload, attested_keys: [{ ...jwk, kid: 'other' }] }));
+  test('rejects provider that changes crv', () => rejects({ ...goodPayload, attested_keys: [{ ...jwk, crv: 'Ed448' }] }));
+  test('rejects provider that changes kty', () => rejects({ ...goodPayload, attested_keys: [{ ...jwk, kty: 'EC' }] }));
+  test('rejects provider that changes y', () =>
+    rejects({ ...goodPayload, attested_keys: [{ ...ec, y: 'zzz' }] }, { ...opts, attestedKey: ec }));
+  test('rejects provider that drops y', () => {
+    const { y: _y, ...noY } = ec;
+    return rejects({ ...goodPayload, attested_keys: [noY] }, { ...opts, attestedKey: ec });
+  });
+  test('accepts a matching EC key', async () => {
+    global.fetch = jest.fn().mockResolvedValue(okResponse(makeJwt(goodHeader, { ...goodPayload, attested_keys: [ec] }))) as any;
+    await expect(requestKeyAttestation({ ...opts, attestedKey: ec })).resolves.toBeTruthy();
+  });
+  test('rejects when the sent key has no x (no silent pass)', () => {
+    const { x: _x, ...noX } = jwk;
+    return rejects({ ...goodPayload, attested_keys: [noX] }, { ...opts, attestedKey: noX });
+  });
+  test('rejects over-claiming key_storage', () => rejects({ ...goodPayload, key_storage: ['iso_18045_high'] }));
+  test('rejects key_storage with extra entries', () =>
+    rejects({ ...goodPayload, key_storage: ['iso_18045_basic', 'iso_18045_high'] }));
+  test('rejects attestation without key_storage', () => {
+    const { key_storage: _ks, ...p } = goodPayload;
+    return rejects(p);
   });
 
   test('rejects wrong typ header', async () => {

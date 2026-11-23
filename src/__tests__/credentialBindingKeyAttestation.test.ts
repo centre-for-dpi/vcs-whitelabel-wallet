@@ -127,3 +127,17 @@ test('uses algorithm from attestation proof type when only attestation is offere
   await credentialBindingResolver(options);
   expect(kms.createKeyForSignatureAlgorithm).toHaveBeenCalledWith({ algorithm: 'ES256' });
 });
+
+test('attestation proof type requires, jwt does not, toggle off → jwk binding, no throw, no provider call', async () => {
+  mockConfig.enabled = false;
+  const { kms, options } = setup({
+    proofTypes: {
+      jwt: { supportedSignatureAlgorithms: ['EdDSA'] },
+      attestation: { supportedSignatureAlgorithms: ['EdDSA'], keyAttestationsRequired: { keyStorage: ['iso_18045_high'] } },
+    },
+  });
+  const result: any = await credentialBindingResolver(options);
+  expect(result.method).toBe('jwk');
+  expect(mockRequest).not.toHaveBeenCalled();
+  expect(kms.createKeyForSignatureAlgorithm).toHaveBeenCalledTimes(1);
+});

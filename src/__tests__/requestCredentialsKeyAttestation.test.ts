@@ -36,15 +36,20 @@ import type { WalletAgent } from '../agent/setup';
 const mockedRequest = requestKeyAttestation as jest.Mock;
 const cfg = keyAttestationConfig as { enabled: boolean; attachWhen: string };
 
+const createKey = jest.fn(async () => ({
+  publicJwk: { kty: 'EC', crv: 'P-256', x: 'x', y: 'y', kid: 'kms-id' },
+  keyId: 'kms-id',
+}));
 const makeAgent = () =>
   ({
     dependencyManager: {
       resolve: jest.fn(() => ({
-        createKeyForSignatureAlgorithm: jest.fn(async () => ({
-          publicJwk: { kty: 'EC', crv: 'P-256', x: 'x', y: 'y', kid: 'kms-id' },
-          keyId: 'kms-id',
-        })),
+        createKeyForSignatureAlgorithm: createKey,
         sign: jest.fn(async () => ({ signature: new Uint8Array([1, 2, 3]) })),
+        // DidsApi.create is used for did:key binding
+        create: jest.fn(async () => ({
+          didState: { state: 'finished', didDocument: { verificationMethod: [{ id: 'did:key:z6Mk#z6Mk' }] } },
+        })),
       })),
     },
     modules: { openid4vc: { holder: {} } },
@@ -71,6 +76,7 @@ let bodies: string[];
 beforeEach(() => {
   bodies = [];
   mockedRequest.mockClear();
+  createKey.mockClear();
   cfg.enabled = true;
   cfg.attachWhen = 'required';
   global.fetch = jest.fn(async (_url: string, init: RequestInit) => {
@@ -119,6 +125,24 @@ test('attachWhen always attaches without issuer requirement', async () => {
 test('requires attestation but DID-only binding throws', async () => {
   await expect(
     run(makeOffer(['did:key'], { key_attestations_required: {} })),
-  ).rejects.toMatchObject({ name: 'KeyAttestationError', code: 'disabled' });
+  ).rejects.toMatchObject({ name: 'KeyAttestationError', code: 'did_binding_unsupported' });
+  expect(mockedRequest).not.toHaveBeenCalled();
+  expect(createKey).not.toHaveBeenCalled();
+});
+
+test('attachWhen always + DID-only + no requirement → plain did proof, no provider call', async () => {
+  cfg.attachWhen = 'always';
+  await run(makeOffer(['did:key'], {}));
+  const header = proofHeader();
+  expect(header.kid).toBe('did:key:z6Mk#z6Mk');
+  expect(header.key_attestation).toBeUndefined();
+  expect(mockedRequest).not.toHaveBeenCalled();
+});
+
+test('issuer requires iso_18045_high → key_storage_level and no key generated', async () => {
+  await expect(
+    run(makeOffer(['jwk'], { key_attestations_required: { key_storage: ['iso_18045_high'] } })),
+  ).rejects.toMatchObject({ name: 'KeyAttestationError', code: 'key_storage_level' });
+  expect(createKey).not.toHaveBeenCalled();
   expect(mockedRequest).not.toHaveBeenCalled();
 });

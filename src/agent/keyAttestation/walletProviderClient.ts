@@ -35,8 +35,25 @@ function validateAttestation(jwt: unknown, opts: RequestKeyAttestationOptions): 
   if (header.typ !== 'key-attestation+jwt') throw invalid('typ inesperado');
   if (payload.nonce !== opts.nonce) throw invalid('el nonce no coincide');
   const keys = payload.attested_keys;
-  if (!Array.isArray(keys) || keys.length !== 1 || keys[0]?.x !== opts.attestedKey.x) {
-    throw invalid('la clave atestiguada no coincide');
+  if (!Array.isArray(keys) || keys.length !== 1) throw invalid('la clave atestiguada no coincide');
+  const echoed = keys[0] ?? {};
+  const sent = opts.attestedKey;
+  if (typeof sent.kid !== 'string' || typeof echoed.kid !== 'string' || echoed.kid !== sent.kid) {
+    throw invalid('el kid de la clave atestiguada no coincide');
+  }
+  for (const field of ['kty', 'crv', 'x', 'y'] as const) {
+    const required = field === 'kty' || field === 'x';
+    if (sent[field] === undefined && !required) {
+      if (echoed[field] !== undefined) throw invalid('la clave atestiguada no coincide');
+      continue;
+    }
+    if (typeof sent[field] !== 'string' || typeof echoed[field] !== 'string' || echoed[field] !== sent[field]) {
+      throw invalid('la clave atestiguada no coincide');
+    }
+  }
+  const storage = payload.key_storage;
+  if (!Array.isArray(storage) || storage.length !== 1 || storage[0] !== opts.keyStorage) {
+    throw invalid('key_storage no coincide con el nivel declarado');
   }
   return jwt;
 }

@@ -136,7 +136,8 @@ export type Iso18045Level =
 export type KeyAttestationConfig = {
   enabled: boolean;
   walletProviderUrl: string;
-  keyStorage: Iso18045Level;
+  // Only basic may be declared: Askar software keys are not hardware-backed.
+  keyStorage: 'iso_18045_basic';
   attachWhen: 'required' | 'always';
 };
 

@@ -347,14 +347,17 @@ async function buildProofJwt(
 ): Promise<{ proofJwt: string; keyId: string }> {
   const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
   const { algorithm, useJwk, keyAttestationRequired } = opts;
-  const attach = shouldAttachKeyAttestation(keyAttestationRequired, keyAttestationConfig);
-
-  if (attach && !useJwk) {
+  // Only a real issuer requirement (with the feature on) makes a DID-only issuer an error;
+  // otherwise DID-only issuers keep working and simply get no attestation.
+  if (keyAttestationRequired && keyAttestationConfig.enabled && !useJwk) {
     throw new KeyAttestationError(
-      'disabled',
+      'did_binding_unsupported',
       'El emisor exige key attestation pero solo acepta vinculación por DID, que no es compatible.',
     );
   }
+  const attach = shouldAttachKeyAttestation(keyAttestationRequired, keyAttestationConfig) && useJwk;
+  // Validate before generating any key.
+  if (attach) assertCanSatisfy(keyAttestationRequired, keyAttestationConfig);
 
   if (useJwk) {
     const { publicJwk, keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm });
@@ -364,7 +367,6 @@ async function buildProofJwt(
       publicJwk as Record<string, unknown>;
     const header: Record<string, unknown> = { alg: algorithm, jwk: cleanJwk, typ: 'openid4vci-proof+jwt' };
     if (attach) {
-      assertCanSatisfy(keyAttestationRequired, keyAttestationConfig);
       // The attested key keeps `kid` (KMS keyId), as in credentialBinding.ts.
       header.key_attestation = await requestKeyAttestation({
         walletProviderUrl: keyAttestationConfig.walletProviderUrl,

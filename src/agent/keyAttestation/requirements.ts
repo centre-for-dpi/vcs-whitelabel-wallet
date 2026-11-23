@@ -9,7 +9,8 @@ export type KeyAttestationErrorCode =
   | 'user_authentication'
   | 'not_configured'
   | 'provider_error'
-  | 'invalid_attestation';
+  | 'invalid_attestation'
+  | 'did_binding_unsupported';
 
 export class KeyAttestationError extends Error {
   constructor(public code: KeyAttestationErrorCode, message: string) {
@@ -22,7 +23,11 @@ export class KeyAttestationError extends Error {
 export function getKeyAttestationRequirement(
   proofTypes: OpenId4VciCredentialBindingOptions['proofTypes']
 ): KeyAttestationRequirement | undefined {
-  return proofTypes?.attestation?.keyAttestationsRequired ?? proofTypes?.jwt?.keyAttestationsRequired ?? undefined;
+  // If a plain jwt proof type is offered, only ITS requirement blocks: Credo's own check
+  // (OpenId4VciHolderService) looks only at jwt, and a jwt proof is accepted by the issuer.
+  // The attestation proof type's requirement matters only when no jwt proof type is offered.
+  if (proofTypes?.jwt) return proofTypes.jwt.keyAttestationsRequired ?? undefined;
+  return proofTypes?.attestation?.keyAttestationsRequired ?? undefined;
 }
 
 export function shouldAttachKeyAttestation(
@@ -34,6 +39,10 @@ export function shouldAttachKeyAttestation(
 }
 
 export function assertCanSatisfy(req: KeyAttestationRequirement | undefined, config: KeyAttestationConfig): void {
+  // Runtime guard in case the literal type is bypassed: software keys may only claim basic.
+  if (config.enabled && (config.keyStorage as string) !== 'iso_18045_basic') {
+    throw new KeyAttestationError('not_configured', 'La wallet solo puede declarar el nivel iso_18045_basic para sus claves de software; revisa keyAttestationConfig.keyStorage.');
+  }
   if (!req) return;
   if (!config.enabled) {
     throw new KeyAttestationError('disabled', 'Este emisor exige una key attestation y esta wallet la tiene desactivada.');
