@@ -141,3 +141,41 @@ test('attestation proof type requires, jwt does not, toggle off → jwk binding,
   expect(mockRequest).not.toHaveBeenCalled();
   expect(kms.createKeyForSignatureAlgorithm).toHaveBeenCalledTimes(1);
 });
+
+test('always + jwt without requirement + attestation proof requiring high -> plain jwk binding, provider not called, one key', async () => {
+  mockConfig.attachWhen = 'always';
+  const { kms, options } = setup({
+    proofTypes: {
+      jwt: { supportedSignatureAlgorithms: ['EdDSA'] },
+      attestation: { supportedSignatureAlgorithms: ['EdDSA'], keyAttestationsRequired: { keyStorage: ['iso_18045_high'] } },
+    },
+  });
+  const result: any = await credentialBindingResolver(options);
+  expect(result.method).toBe('jwk');
+  expect(mockRequest).not.toHaveBeenCalled();
+  expect(kms.createKeyForSignatureAlgorithm).toHaveBeenCalledTimes(1);
+});
+
+test('always + enabled + empty walletProviderUrl -> not_configured, no key, no provider call', async () => {
+  mockConfig.attachWhen = 'always';
+  mockConfig.walletProviderUrl = '';
+  const { kms, options } = setup();
+  const err = await credentialBindingResolver(options).catch((e) => e);
+  expect(err).toBeInstanceOf(KeyAttestationError);
+  expect(err.code).toBe('not_configured');
+  expect(kms.createKeyForSignatureAlgorithm).not.toHaveBeenCalled();
+  expect(mockRequest).not.toHaveBeenCalled();
+});
+
+test('issuer requires attestation + DID-only binding + enabled -> did_binding_unsupported (no attestation binding)', async () => {
+  const { kms, options } = setup({
+    supportsJwk: false,
+    supportedDidMethods: ['did:key'],
+    proofTypes: { jwt: undefined, attestation: { supportedSignatureAlgorithms: ['EdDSA'], keyAttestationsRequired: { keyStorage: ['iso_18045_basic'] } } },
+  });
+  const err = await credentialBindingResolver(options).catch((e) => e);
+  expect(err).toBeInstanceOf(KeyAttestationError);
+  expect(err.code).toBe('did_binding_unsupported');
+  expect(kms.createKeyForSignatureAlgorithm).not.toHaveBeenCalled();
+  expect(mockRequest).not.toHaveBeenCalled();
+});

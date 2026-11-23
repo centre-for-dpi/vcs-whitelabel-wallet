@@ -7,8 +7,7 @@ import { cborDecode, cborEncode } from '@animo-id/mdoc';
 import { keyAttestationConfig } from '../../../branding.config';
 import {
   KeyAttestationError,
-  assertCanSatisfy,
-  shouldAttachKeyAttestation,
+  planKeyAttestation,
   type KeyAttestationRequirement,
 } from '../keyAttestation/requirements';
 import { requestKeyAttestation } from '../keyAttestation/walletProviderClient';
@@ -347,17 +346,20 @@ async function buildProofJwt(
 ): Promise<{ proofJwt: string; keyId: string }> {
   const kms = agent.dependencyManager.resolve(Kms.KeyManagementApi);
   const { algorithm, useJwk, keyAttestationRequired } = opts;
-  // Only a real issuer requirement (with the feature on) makes a DID-only issuer an error;
-  // otherwise DID-only issuers keep working and simply get no attestation.
-  if (keyAttestationRequired && keyAttestationConfig.enabled && !useJwk) {
+  // Same decision as the Credo path (credentialBinding.ts); runs before any key is created.
+  const { attach } = planKeyAttestation({
+    req: keyAttestationRequired,
+    supportsJwk: useJwk,
+    config: keyAttestationConfig,
+  });
+  // The legacy path never calls nonce_endpoint, so it can only attest when the token response
+  // carried a c_nonce.
+  if (attach && !cNonce) {
     throw new KeyAttestationError(
-      'did_binding_unsupported',
-      'El emisor exige key attestation pero solo acepta vinculación por DID, que no es compatible.',
+      'nonce_unavailable',
+      'El emisor no entregó un c_nonce y el flujo legacy no puede solicitar uno para la key attestation.',
     );
   }
-  const attach = shouldAttachKeyAttestation(keyAttestationRequired, keyAttestationConfig) && useJwk;
-  // Validate before generating any key.
-  if (attach) assertCanSatisfy(keyAttestationRequired, keyAttestationConfig);
 
   if (useJwk) {
     const { publicJwk, keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm });

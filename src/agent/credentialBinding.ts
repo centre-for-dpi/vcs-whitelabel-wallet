@@ -4,7 +4,7 @@ import { keyAttestationConfig } from '../../branding.config';
 import {
   assertCanSatisfy,
   getKeyAttestationRequirement,
-  shouldAttachKeyAttestation,
+  planKeyAttestation,
 } from './keyAttestation/requirements';
 import { requestKeyAttestation } from './keyAttestation/walletProviderClient';
 
@@ -20,12 +20,20 @@ export const credentialBindingResolver = async ({
   const algorithms = proofTypes.jwt?.supportedSignatureAlgorithms ?? [];
   const algorithm = algorithms[0] ?? 'EdDSA';
 
-  // Fail early with a clear message when the issuer demands a key attestation
-  // this wallet cannot provide (even with the toggle off).
+  // Shared decision (also used by the legacy path): throws early with a clear message when the
+  // issuer demands an attestation this wallet cannot provide, before any key is created.
   const attestationReq = getKeyAttestationRequirement(proofTypes);
-  assertCanSatisfy(attestationReq, keyAttestationConfig);
+  const { attach } = planKeyAttestation({
+    req: attestationReq,
+    // Credo sends the `attestation` proof type whenever it is offered; only matters beside jwt.
+    attestationProofReq: proofTypes.jwt && proofTypes.attestation
+      ? proofTypes.attestation.keyAttestationsRequired ?? {}
+      : undefined,
+    supportsJwk,
+    config: keyAttestationConfig,
+  });
 
-  if (shouldAttachKeyAttestation(attestationReq, keyAttestationConfig) && (supportsJwk || attestationReq)) {
+  if (attach) {
     const attestationAlgorithm =
       (proofTypes.attestation ?? proofTypes.jwt)?.supportedSignatureAlgorithms?.[0] ?? 'EdDSA';
     const { publicJwk, keyId } = await kms.createKeyForSignatureAlgorithm({ algorithm: attestationAlgorithm });

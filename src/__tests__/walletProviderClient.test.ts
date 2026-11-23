@@ -114,4 +114,14 @@ describe('requestKeyAttestation', () => {
     ) as any;
     await expectCode(requestKeyAttestation({ ...opts, timeoutMs: 10 }), 'provider_error');
   });
+
+  test('rejects an empty nonce without calling fetch', async () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as any;
+    await expectCode(requestKeyAttestation({ ...opts, nonce: '' }), 'nonce_unavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('rejects attestation whose payload nonce is empty', () =>
+    rejects({ ...goodPayload, nonce: '' }, { ...opts, nonce: 'n-1' }));
 });

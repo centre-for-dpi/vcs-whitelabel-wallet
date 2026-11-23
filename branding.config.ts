@@ -125,8 +125,12 @@ export const discoveryConfig: {
 //   'required' — attach an attestation only when the issuer demands one.
 //   'always'   — attach one to every proof, even if the issuer doesn't ask.
 //
-// Leave enabled:false to keep the feature off; issuers that require an
-// attestation then fail with a clear error instead of a server rejection.
+// While enabled, walletProviderUrl must be an absolute https URL (http only in
+// dev builds); otherwise every issuance fails with a not_configured error.
+//
+// Leave enabled:false to keep the feature off: issuers that do not require an
+// attestation are unaffected, and issuers that do require one fail with a clear
+// error (on both the Credo and the legacy issuance paths) instead of a server rejection.
 export type Iso18045Level =
   | 'iso_18045_basic'
   | 'iso_18045_enhanced-basic'

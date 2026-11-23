@@ -33,7 +33,7 @@ function validateAttestation(jwt: unknown, opts: RequestKeyAttestationOptions): 
     throw invalid('no se pudo decodificar');
   }
   if (header.typ !== 'key-attestation+jwt') throw invalid('typ inesperado');
-  if (payload.nonce !== opts.nonce) throw invalid('el nonce no coincide');
+  if (typeof payload.nonce !== 'string' || payload.nonce === '' || payload.nonce !== opts.nonce) throw invalid('el nonce no coincide');
   const keys = payload.attested_keys;
   if (!Array.isArray(keys) || keys.length !== 1) throw invalid('la clave atestiguada no coincide');
   const echoed = keys[0] ?? {};
@@ -59,6 +59,12 @@ function validateAttestation(jwt: unknown, opts: RequestKeyAttestationOptions): 
 }
 
 export async function requestKeyAttestation(opts: RequestKeyAttestationOptions): Promise<string> {
+  if (typeof opts.nonce !== 'string' || opts.nonce === '') {
+    throw new KeyAttestationError(
+      'nonce_unavailable',
+      'No hay un nonce (c_nonce) del emisor para solicitar la key attestation.'
+    );
+  }
   const url = `${opts.walletProviderUrl.replace(/\/+$/, '')}/key-attestation`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 15_000);

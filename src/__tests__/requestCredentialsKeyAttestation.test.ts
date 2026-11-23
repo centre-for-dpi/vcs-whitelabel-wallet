@@ -109,11 +109,45 @@ test('legacy path without requirement leaves header unchanged', async () => {
   expect(mockedRequest).not.toHaveBeenCalled();
 });
 
-test('toggle off: header unchanged even if issuer requires attestation', async () => {
+test('toggle off + issuer requires attestation -> disabled, nothing sent, no key', async () => {
   cfg.enabled = false;
-  await run(makeOffer(['jwk'], { key_attestations_required: { key_storage: ['iso_18045_basic'] } }));
+  await expect(
+    run(makeOffer(['jwk'], { key_attestations_required: { key_storage: ['iso_18045_basic'] } })),
+  ).rejects.toMatchObject({ name: 'KeyAttestationError', code: 'disabled' });
+  expect(bodies).toHaveLength(0);
+  expect(createKey).not.toHaveBeenCalled();
+  expect(mockedRequest).not.toHaveBeenCalled();
+});
+
+test('toggle off + no requirement -> header byte-identical {alg, jwk, typ}', async () => {
+  cfg.enabled = false;
+  await run(makeOffer(['jwk'], {}));
   expect(Object.keys(proofHeader())).toEqual(['alg', 'jwk', 'typ']);
   expect(mockedRequest).not.toHaveBeenCalled();
+});
+
+test('attach with empty cNonce -> nonce_unavailable before any key or provider call', async () => {
+  await expect(
+    requestOid4VciCredentials(
+      makeAgent(),
+      makeOffer(['jwk'], { key_attestations_required: { key_storage: ['iso_18045_basic'] } }) as unknown as Record<string, unknown>,
+      { accessToken: 't' } as any,
+    ),
+  ).rejects.toMatchObject({ name: 'KeyAttestationError', code: 'nonce_unavailable' });
+  expect(createKey).not.toHaveBeenCalled();
+  expect(mockedRequest).not.toHaveBeenCalled();
+  expect(bodies).toHaveLength(0);
+});
+
+test('always + empty walletProviderUrl -> not_configured on the legacy path', async () => {
+  cfg.attachWhen = 'always';
+  (cfg as any).walletProviderUrl = '';
+  try {
+    await expect(run(makeOffer(['jwk'], {}))).rejects.toMatchObject({ code: 'not_configured' });
+  } finally {
+    (cfg as any).walletProviderUrl = 'https://wp.example';
+  }
+  expect(createKey).not.toHaveBeenCalled();
 });
 
 test('attachWhen always attaches without issuer requirement', async () => {

@@ -1,5 +1,5 @@
 import type { KeyAttestationConfig } from '../../branding.config';
-import { getKeyAttestationRequirement, shouldAttachKeyAttestation, assertCanSatisfy, KeyAttestationError } from '../agent/keyAttestation/requirements';
+import { getKeyAttestationRequirement, shouldAttachKeyAttestation, assertCanSatisfy, planKeyAttestation, KeyAttestationError } from '../agent/keyAttestation/requirements';
 
 const cfg: KeyAttestationConfig = { enabled: true, walletProviderUrl: 'https://wp.test', keyStorage: 'iso_18045_basic', attachWhen: 'required' };
 const req = (r?: object) => ({ jwt: { supportedSignatureAlgorithms: ['ES256'], keyAttestationsRequired: r }, attestation: undefined }) as any;
@@ -41,4 +41,65 @@ test.each([
   try { assertCanSatisfy(r, c as any); } catch (e) { thrown = e; }
   expect(thrown).toBeInstanceOf(KeyAttestationError);
   expect((thrown as KeyAttestationError).code).toBe(code);
+});
+
+describe('walletProviderUrl validation (enabled)', () => {
+  const codeOf = (r: any, c: any) => {
+    try { assertCanSatisfy(r, c); } catch (e) { return (e as KeyAttestationError).code; }
+    return undefined;
+  };
+  const always = { ...cfg, attachWhen: 'always' as const };
+  test('enabled/always/empty URL, no requirement -> not_configured', () => {
+    expect(codeOf(undefined, { ...always, walletProviderUrl: '' })).toBe('not_configured');
+  });
+  test.each(['/relative/path', 'garbage', 'wp.test'])('invalid URL %s -> not_configured', (u) => {
+    expect(codeOf(undefined, { ...always, walletProviderUrl: u })).toBe('not_configured');
+  });
+  test('https URL OK without requirement', () => {
+    expect(codeOf(undefined, always)).toBeUndefined();
+  });
+  test('http allowed under __DEV__ (jest)', () => {
+    expect((global as any).__DEV__).toBe(true);
+    expect(codeOf(undefined, { ...always, walletProviderUrl: 'http://wp.test' })).toBeUndefined();
+  });
+  test('http rejected when __DEV__ is false', () => {
+    const g = global as any;
+    const prev = g.__DEV__;
+    g.__DEV__ = false;
+    try {
+      expect(codeOf(undefined, { ...always, walletProviderUrl: 'http://wp.test' })).toBe('not_configured');
+      expect(codeOf(undefined, always)).toBeUndefined();
+    } finally { g.__DEV__ = prev; }
+  });
+  test('disabled config ignores URL', () => {
+    expect(codeOf(undefined, { ...cfg, enabled: false, walletProviderUrl: '' })).toBeUndefined();
+  });
+});
+
+describe('planKeyAttestation', () => {
+  const base = { supportsJwk: true };
+  test('required + jwk -> attach', () => {
+    expect(planKeyAttestation({ ...base, req: {}, config: cfg })).toEqual({ attach: true });
+  });
+  test('toggle off + requirement -> disabled', () => {
+    expect(() => planKeyAttestation({ ...base, req: {}, config: { ...cfg, enabled: false } })).toThrow(expect.objectContaining({ code: 'disabled' }));
+  });
+  test('toggle off, no requirement -> no attach', () => {
+    expect(planKeyAttestation({ ...base, req: undefined, config: { ...cfg, enabled: false } })).toEqual({ attach: false });
+  });
+  test('requirement + DID-only + enabled -> did_binding_unsupported', () => {
+    expect(() => planKeyAttestation({ supportsJwk: false, req: {}, config: cfg })).toThrow(expect.objectContaining({ code: 'did_binding_unsupported' }));
+  });
+  test('no requirement + always + DID-only -> no attach', () => {
+    expect(planKeyAttestation({ supportsJwk: false, req: undefined, config: { ...cfg, attachWhen: 'always' } })).toEqual({ attach: false });
+  });
+  test('always-only + unsatisfiable attestation proof requirement -> no attach', () => {
+    expect(planKeyAttestation({ ...base, req: undefined, attestationProofReq: { keyStorage: ['iso_18045_high'] }, config: { ...cfg, attachWhen: 'always' } })).toEqual({ attach: false });
+  });
+  test('always-only + satisfiable attestation proof requirement -> attach', () => {
+    expect(planKeyAttestation({ ...base, req: undefined, attestationProofReq: { keyStorage: ['iso_18045_basic'] }, config: { ...cfg, attachWhen: 'always' } })).toEqual({ attach: true });
+  });
+  test('blocking jwt requirement + unsatisfiable attestation proof requirement -> throws', () => {
+    expect(() => planKeyAttestation({ ...base, req: {}, attestationProofReq: { keyStorage: ['iso_18045_high'] }, config: cfg })).toThrow(expect.objectContaining({ code: 'key_storage_level' }));
+  });
 });
