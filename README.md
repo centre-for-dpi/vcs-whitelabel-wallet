@@ -292,7 +292,7 @@ node scripts/dev-wallet-provider.mjs --port 8787
 
 Then set `keyAttestationConfig` in `branding.config.ts` to `{ enabled: true, walletProviderUrl: 'http://<LAN-IP>:8787', keyStorage: 'iso_18045_basic', attachWhen: 'always' }` and issue an SD-JWT credential from an issuer that accepts `jwk` attestations.
 
-> **Warning:** this is NOT a production Wallet Provider (no device-integrity checks, no trust anchor). Set `enabled: false` again before committing.
+> **Warning:** this is NOT a production Wallet Provider (no device-integrity checks, no trust anchor), and it is unauthenticated and bound to `0.0.0.0`, so it signs attestations for anyone on the LAN: run it on trusted networks only. It only attests `iso_18045_basic`. Set `enabled: false` again before committing.
 
 ---
 

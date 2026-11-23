@@ -48,9 +48,16 @@ const server = http.createServer((req, res) => {
       } catch {
         return send(res, 400, { error: 'invalid_request' });
       }
-      const { attested_keys, nonce, key_storage } = body ?? {};
+      const { attested_keys, nonce } = body ?? {};
+      const key_storage = body?.key_storage ?? ['iso_18045_basic'];
       if (!Array.isArray(attested_keys) || attested_keys.length === 0 || typeof nonce !== 'string' || !nonce) {
         return send(res, 400, { error: 'invalid_request' });
+      }
+      if (!Array.isArray(key_storage) || key_storage.length !== 1 || key_storage[0] !== 'iso_18045_basic') {
+        return send(res, 400, {
+          error: 'invalid_request',
+          error_description: 'key_storage must be exactly ["iso_18045_basic"]',
+        });
       }
       try {
         send(res, 200, { key_attestation: await signAttestation({ attested_keys, key_storage, nonce }) });
@@ -64,4 +71,7 @@ const server = http.createServer((req, res) => {
   send(res, 404, { error: 'not_found' });
 });
 
-server.listen(port, '0.0.0.0', () => console.log(`Dev Wallet Provider listening on http://0.0.0.0:${port}`));
+server.listen(port, '0.0.0.0', () => {
+  console.log('*** DEV ONLY: NOT a production Wallet Provider. Unauthenticated and LAN-exposed (0.0.0.0): run on trusted networks only. ***');
+  console.log(`Dev Wallet Provider listening on http://0.0.0.0:${port}`);
+});
